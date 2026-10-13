@@ -1,0 +1,31 @@
+# see https://symfony.com/doc/current/reference/configuration/framework.html
+framework:
+    secret: '%env(APP_SECRET)%'
+
+    # A pure token API: no cookies, no sessions.
+    session: false
+
+    # Caddy and nginx in front, both on private Docker networks.
+    trusted_proxies: 'PRIVATE_SUBNETS'
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-proto']
+
+    # Expected API errors (validation, not found, AI busy) are not server errors.
+    exceptions:
+        App\Http\ApiError:
+            log_level: info
+
+    rate_limiter:
+        # Failed and successful logins per e-mail + IP.
+        login:
+            policy: fixed_window
+            limit: 10
+            interval: '15 minutes'
+        # Photo/description analyses per user, guards the Claude subscription limit.
+        analysis:
+            policy: sliding_window
+            limit: '%env(int:KALORIE_ANALYSES_PER_HOUR)%'
+            interval: '1 hour'
+
+when@test:
+    framework:
+        test: true
