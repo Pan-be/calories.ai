@@ -1,0 +1,14 @@
+[Unit]
+Description=Kalorie AI bridge (Claude on the subscription, Unix socket for the app)
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/kalorie/app/bridge/claude_bridge.py --socket /opt/kalorie/run/ai.sock --max-parallel 2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -15,12 +15,20 @@ FROM base AS dev
 COPY --from=composer /usr/bin/composer /usr/bin/composer
 
 FROM dev AS build
+# Composer plugins (symfony/runtime writes autoload_runtime.php) run only with this as root.
+ENV COMPOSER_ALLOW_SUPERUSER=1
 COPY composer.json composer.lock symfony.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-progress
 COPY . .
 RUN composer dump-autoload --no-dev --classmap-authoritative \
- && APP_ENV=prod composer run-script --no-dev post-install-cmd
+ && APP_ENV=prod APP_DEBUG=0 php bin/console cache:warmup
 
 FROM base AS prod
-COPY --from=build /app /app
-ENV APP_ENV=prod
+# The app runs as Konrad's uid (1000): it owns the data volume and can use the AI
+# bridge's socket, which the bridge creates as 0600.
+COPY --from=build --chown=1000:1000 /app /app
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/kalorie-entrypoint
+ENV APP_ENV=prod APP_DEBUG=0
+USER 1000:1000
+ENTRYPOINT ["kalorie-entrypoint"]
+CMD ["php-fpm"]

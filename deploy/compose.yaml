@@ -1,0 +1,44 @@
+# Kalorie on Serverus. Lives in /opt/kalorie next to:
+#   app/      a clone of the repo (built into the PHP image; nginx serves app/public)
+#   data/     SQLite database and photos (backed up with /opt by restic)
+#   run/      the AI bridge's socket (claude_bridge.py, a systemd user service on the host)
+#   app.env   APP_SECRET, not in git
+name: kalorie
+
+services:
+  kalorie-php:
+    build:
+      context: ./app
+      dockerfile: docker/php.Dockerfile
+      target: prod
+    image: kalorie-php:latest
+    container_name: kalorie-php
+    restart: unless-stopped
+    env_file: ./app.env
+    environment:
+      DATABASE_URL: "sqlite:////data/kalorie.db"
+      KALORIE_PHOTO_DIR: /data/photos
+      KALORIE_BRIDGE_SOCKET: /run/kalorie/ai.sock
+      KALORIE_REGISTRATION: first
+      KALORIE_MODEL: sonnet
+    volumes:
+      - ./data:/data
+      - ./run:/run/kalorie
+    networks: [internal]
+
+  kalorie-nginx:
+    image: nginx:1.30.5-alpine
+    container_name: kalorie-nginx
+    restart: unless-stopped
+    depends_on: [kalorie-php]
+    volumes:
+      - ./app/public:/app/public:ro
+      - ./app/docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:8091:80"
+    networks: [internal, caddy_net]
+
+networks:
+  internal:
+  caddy_net:
+    external: true
