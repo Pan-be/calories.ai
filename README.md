@@ -137,3 +137,10 @@ thumbnail), so EXIF metadata such as GPS position is never stored or sent to the
 web app also shrinks photos on the phone first. The page loads no third-party scripts,
 fonts or trackers. See [PRIVACY.md](PRIVACY.md) for what is stored and what goes to the
 AI provider.
+
+## License
+
+Copyright © 2026 Konrad Bieniek. Licensed under the
+[GNU Affero General Public License v3.0 or later](LICENSE): you may use, change and
+share this code, and if you run a modified version as a network service, you must offer
+its source to the people who use it.
