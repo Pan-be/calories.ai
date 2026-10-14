@@ -27,6 +27,11 @@ final class AnalysisFailed extends ApiError
         return new self(504, 'ai_timeout', 'Analiza trwała za długo. Spróbuj jeszcze raz.');
     }
 
+    public static function noSuggestions(): self
+    {
+        return new self(502, 'ai_failed', 'Nie udało się przygotować propozycji. Spróbuj jeszcze raz.');
+    }
+
     public static function failed(): self
     {
         return new self(502, 'ai_failed', 'Nie udało się przeanalizować posiłku. Spróbuj jeszcze raz.');

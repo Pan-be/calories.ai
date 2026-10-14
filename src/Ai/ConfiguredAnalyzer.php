@@ -20,9 +20,19 @@ final class ConfiguredAnalyzer implements MealAnalyzer
 
     public function analyze(AnalysisRequest $request): MealAnalysis
     {
+        return $this->engine()->analyze($request);
+    }
+
+    public function suggest(SuggestionRequest $request): MealSuggestions
+    {
+        return $this->engine()->suggest($request);
+    }
+
+    private function engine(): MealAnalyzer
+    {
         if (!$this->analyzers->has($this->name)) {
             throw new \LogicException("Unknown KALORIE_ANALYZER: {$this->name}");
         }
-        return $this->analyzers->get($this->name)->analyze($request);
+        return $this->analyzers->get($this->name);
     }
 }

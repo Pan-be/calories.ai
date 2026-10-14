@@ -39,6 +39,23 @@ final class ClaudeBridgeAnalyzer implements MealAnalyzer
         return MealAnalysis::fromOutput($answer['output'], (string) ($answer['model'] ?? $this->model));
     }
 
+    public function suggest(SuggestionRequest $request): MealSuggestions
+    {
+        $answer = $this->post('/v1/structured', [
+            'model' => $this->model,
+            'system' => SuggestionPrompt::SYSTEM,
+            'schema' => SuggestionPrompt::SCHEMA,
+            'content' => [['type' => 'text', 'text' => SuggestionPrompt::userText($request)]],
+            'timeout_s' => self::TIMEOUT_S - 10,
+        ]);
+        $suggestions = MealSuggestions::fromOutput($answer['output'], (string) ($answer['model'] ?? $this->model));
+        if ($suggestions->suggestions === []) {
+            $this->logger->warning('AI bridge: no usable suggestions');
+            throw AnalysisFailed::noSuggestions();
+        }
+        return $suggestions;
+    }
+
     private function post(string $path, array $body): array
     {
         $ch = curl_init('http://bridge' . $path);

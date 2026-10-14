@@ -8,6 +8,7 @@ use App\Http\Dates;
 use App\Nutrition\Presenter;
 use App\Repository\MealRepository;
 use App\Repository\WeightEntryRepository;
+use App\Repository\WorkoutRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,9 +21,9 @@ final class DayController extends AbstractController
     {
     }
 
-    /** One day: goals, what's eaten so far, what's left, and the meals. */
+    /** One day: goals, what's eaten so far, what's left, the meals and the day's training. */
     #[Route('/api/days/{day}', methods: ['GET'])]
-    public function day(string $day, #[CurrentUser] User $user, WeightEntryRepository $weights): JsonResponse
+    public function day(string $day, #[CurrentUser] User $user, WeightEntryRepository $weights, WorkoutRepository $workouts): JsonResponse
     {
         if (Dates::day($day) === null) {
             throw ApiError::invalid('Data musi mieć postać RRRR-MM-DD.');
@@ -46,6 +47,7 @@ final class DayController extends AbstractController
             'totals' => Presenter::round($totals),
             'remaining' => $remaining,
             'weight_kg' => $weights->findOneBy(['user' => $user, 'day' => $day])?->getWeightKg(),
+            'workout' => $workouts->forDay($user, $day)?->toArray(),
             'meals' => array_map($this->presenter->meal(...), $meals),
         ]);
     }

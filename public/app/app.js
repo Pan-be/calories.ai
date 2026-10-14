@@ -386,6 +386,9 @@ function renderDay(day, data, week) {
       })}
     </div>
 
+    <button class="card workout${data.workout ? '' : ' empty-w'}" id="workout">${workoutLabel(data.workout)}</button>
+    ${day === today && remaining.kcal > 50 ? html`<button class="btn secondary" id="suggest">✨ Co zjeść?</button>` : ''}
+
     <div class="section-title">${day === today ? 'Dzisiejsze posiłki' : 'Posiłki'}</div>
     <div id="meals">
       ${pending.map(pendingCard)}
@@ -398,11 +401,15 @@ function renderDay(day, data, week) {
   <button class="fab" id="fab" aria-label="Dodaj posiłek">${icon.plus}</button>`);
 
   $('#fab').addEventListener('click', () => addSheet(day));
+  $('#workout').addEventListener('click', () => workoutSheet(day, data.workout));
+  $('#suggest')?.addEventListener('click', () => suggestSheet(day, remaining));
   loadThumbs();
+  // Once a day, on the first look at today: ask about training.
+  if (day === today && !data.workout && !pending.length && !askedWorkout(today)) workoutSheet(day, null, true);
 }
 
 function mealCard(meal) {
-  const fallback = meal.source === 'text' ? '📝' : '🍽️';
+  const fallback = { text: '📝', suggestion: '✨' }[meal.source] || '🍽️';
   return html`<a class="card meal" href="#/meal/${meal.id}">
     <div class="thumb" data-photo="${meal.thumb_url || ''}">${meal.thumb_url ? '' : fallback}</div>
     <div class="body">
@@ -506,6 +513,131 @@ async function shrink(file, max = 1600) {
   canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close?.();
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/jpeg', 0.86));
+}
+
+// ---------- Workouts ----------
+
+const INTENSITY = [['light', 'Lekki'], ['moderate', 'Średni'], ['hard', 'Mocny']];
+
+function workoutLabel(w) {
+  if (!w) return html`<span class="em">🏋️</span><span class="t">Dodaj dzisiejszy trening</span>`;
+  if (w.rest) return html`<span class="em">😴</span><span class="t">Dzień odpoczynku</span>`;
+  const level = INTENSITY.find((i) => i[0] === w.intensity)?.[1];
+  return html`<span class="em">🏋️</span><span class="t">${w.description}</span>${level ? html`<span class="tag">${level}</span>` : ''}`;
+}
+
+// Whether today's training question was already asked (answered or skipped) on this device.
+const ASKED_KEY = 'kalorie.workoutAsked';
+function askedWorkout(day) {
+  try { return localStorage.getItem(ASKED_KEY) === day || state.askedWorkout === day; } catch { return state.askedWorkout === day; }
+}
+function markAskedWorkout(day) {
+  state.askedWorkout = day;
+  try { localStorage.setItem(ASKED_KEY, day); } catch { /* remembered for this session only */ }
+}
+
+function workoutSheet(day, current, prompt = false) {
+  if (prompt) markAskedWorkout(day);
+  const s = sheet(html`<h3>${prompt ? 'Trenujesz dziś?' : `Trening: ${dayTitle(day).toLowerCase()}`}</h3>
+    ${prompt ? html`<p class="hint" style="margin-top:-6px">Krótki opis wystarczy. Pomaga w podpowiedziach posiłków, a z czasem w dopasowaniu dziennego celu.</p>` : ''}
+    <form id="wkf" novalidate>
+      <div class="picks" id="picks"></div>
+      <textarea class="input" name="description" maxlength="500" placeholder="np. siłownia: nogi, 60 min; bieganie 5 km">${current && !current.rest ? current.description : ''}</textarea>
+      <div class="field" style="margin-top:12px"><span>Intensywność (opcjonalnie)</span><div class="seg">
+        ${INTENSITY.map(([v, t]) => html`<label><input type="radio" name="intensity" value="${v}" ${current?.intensity === v ? 'checked' : ''}>${t}</label>`)}</div></div>
+      <button class="btn" type="submit">Zapisz trening</button>
+      <div class="btn-row"><button class="btn secondary" type="button" id="rest">😴 Dziś odpoczynek</button></div>
+      ${prompt ? html`<button class="btn danger" type="button" id="skip" style="color:var(--muted)">Pomiń</button>` : ''}
+      ${current ? html`<button class="btn danger" type="button" id="wdel">Usuń wpis</button>` : ''}
+    </form>`);
+
+  const f = $('#wkf', s);
+  const ta = f.elements.description;
+  api('GET', '/workouts?days=1').then((res) => {
+    const box = $('#picks', s);
+    if (!box || !res.frequent.length) return;
+    box.innerHTML = render(res.frequent.map((d) => html`<button type="button" class="pick">${d}</button>`));
+    $$('.pick', box).forEach((b) => b.addEventListener('click', () => { ta.value = b.textContent; ta.focus(); }));
+  }).catch(() => {});
+
+  const done = async (request, message) => {
+    try {
+      await request();
+      closeSheet();
+      toast(message);
+      viewDay(day);
+    } catch (e) { toast(e.message, true); }
+  };
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const description = ta.value.trim();
+    if (!description) { ta.focus(); return toast('Opisz trening albo wybierz „Dziś odpoczynek”.', true); }
+    const intensity = f.elements.intensity.value || undefined;
+    done(() => api('PUT', `/workouts/${day}`, { json: { description, intensity } }), 'Zapisano trening');
+  });
+  $('#rest', s).addEventListener('click', () => done(() => api('PUT', `/workouts/${day}`, { json: { rest: true } }), 'Zapisano dzień odpoczynku'));
+  $('#skip', s)?.addEventListener('click', closeSheet);
+  $('#wdel', s)?.addEventListener('click', () => done(() => api('DELETE', `/workouts/${day}`), 'Usunięto wpis'));
+}
+
+// ---------- Meal suggestions ----------
+
+// "1 kubek · 150 g", without repeating the grams when the portion already says them.
+function portionText(it) {
+  const grams = it.grams ? `${n0(it.grams)} g` : '';
+  return [it.portion, it.portion?.includes(grams) ? '' : grams].filter(Boolean).join(' · ');
+}
+
+function suggestSheet(day, remaining) {
+  const left = (k) => n0(Math.max(0, remaining[k]));
+  const s = sheet(html`<h3>✨ Co zjeść?</h3>
+    <div class="left-box">Zostało <b>${left('kcal')} kcal</b>
+      <div class="chips">${MACROS.map((m) => html`<span><i class="dot ${m.cls}"></i>${m.label} ${left(m.key)} g</span>`)}</div></div>
+    <form id="sgf">
+      <input class="input" name="note" maxlength="300" placeholder="Co masz pod ręką? (opcjonalnie)">
+      <div class="btn-row"><button class="btn" type="submit">Podpowiedz</button></div>
+    </form>
+    <div id="sg"></div>`);
+
+  const f = $('#sgf', s);
+  const btn = $('button', f);
+  let suggestions = [];
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    btn.disabled = true;
+    $('#sg', s).innerHTML = render(html`<div class="center-load" style="padding:28px 0;min-height:0"><div class="spinner dark"></div><p class="hint">Układam propozycje…</p></div>`);
+    try {
+      const res = await api('POST', '/suggestions', { json: { note: f.elements.note.value.trim() || undefined } });
+      suggestions = res.suggestions;
+      $('#sg', s).innerHTML = render(html`${suggestions.map((sg, i) => html`<div class="card sugg">
+          <div class="row1"><span class="name">${sg.name}</span><span class="kcal">🔥 ${n0(sg.totals.kcal)} kcal</span></div>
+          ${sg.why ? html`<div class="why">${sg.why}</div>` : ''}
+          ${chips(sg.totals)}
+          <details><summary>Składniki</summary>${sg.items.map((it) => html`<div class="list-row"><span>${it.name}<span class="hint"> · ${portionText(it)}</span></span><span>${n0(it.kcal)} kcal</span></div>`)}</details>
+          <button class="btn small" type="button" data-pick="${i}">Zjem to</button>
+        </div>`)}
+        ${res.notes ? html`<p class="hint">${res.notes}</p>` : ''}`);
+      btn.textContent = 'Inne propozycje';
+      $$('[data-pick]', s).forEach((b) => b.addEventListener('click', () => pick(suggestions[+b.dataset.pick], b)));
+    } catch (err) {
+      $('#sg', s).innerHTML = render(errorBox(err.message));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  async function pick(sg, b) {
+    b.disabled = true;
+    try {
+      await api('POST', '/meals', { json: { name: sg.name, items: sg.items, source: 'suggestion', eaten_at: eatenAtFor(day) } });
+      closeSheet();
+      toast(`Dodano: ${sg.name}`);
+      viewDay(day);
+    } catch (e) {
+      toast(e.message, true);
+      b.disabled = false;
+    }
+  }
 }
 
 // ---------- Meal detail / editor ----------

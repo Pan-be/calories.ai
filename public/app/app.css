@@ -545,3 +545,27 @@ textarea.input { min-height: 96px; resize: vertical; }
   .hero .big { font-size: 36px; }
   .macro .val { font-size: 17px; }
 }
+
+/* Day view: training and meal suggestions */
+.workout { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; padding: 14px 16px; }
+.workout .em { font-size: 20px; flex: none; }
+.workout .t { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.workout.empty-w .t { color: var(--muted); font-weight: 500; }
+.workout .tag { flex: none; font-size: 12px; color: var(--muted); background: var(--track); border-radius: 8px; padding: 2px 8px; }
+#suggest { margin-bottom: 4px; }
+
+.picks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.picks:empty { display: none; }
+.pick { border: 1.5px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 14px; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.left-box { background: var(--card); border-radius: 16px; padding: 12px 14px; margin-bottom: 12px; }
+.left-box .chips { margin-top: 6px; }
+#sg { margin-top: 14px; }
+.sugg { display: flex; flex-direction: column; gap: 8px; }
+.sugg .row1 { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.sugg .name { font-weight: 650; }
+.sugg .kcal { font-weight: 700; white-space: nowrap; }
+.sugg .why { color: var(--muted); font-size: 14px; }
+.sugg details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.sugg details .list-row { font-size: 14px; }
+.sugg .btn { align-self: flex-start; }

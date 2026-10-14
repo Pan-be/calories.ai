@@ -2,6 +2,7 @@
 
 namespace App\Controller\Api;
 
+use App\Ai\AnalysisQuota;
 use App\Ai\AnalysisRequest;
 use App\Ai\MealAnalysis;
 use App\Ai\MealAnalyzer;
@@ -18,7 +19,6 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
@@ -33,7 +33,7 @@ final class MealController extends AbstractController
         private MealAnalyzer $analyzer,
         private PhotoStore $photos,
         private Presenter $presenter,
-        private RateLimiterFactoryInterface $analysisLimiter,
+        private AnalysisQuota $quota,
     ) {
     }
 
@@ -48,7 +48,7 @@ final class MealController extends AbstractController
         $in = Input::form($request);
         $note = $in->string('note', 1000, false);
         $eatenAt = $in->moment('eaten_at') ?? new \DateTimeImmutable();
-        $this->limit($user);
+        $this->quota->consume($user);
 
         $photo = $this->photos->store($file);
         try {
@@ -79,7 +79,7 @@ final class MealController extends AbstractController
         $in = Input::json($request);
         $text = $in->string('text', 2000);
         $eatenAt = $in->moment('eaten_at') ?? new \DateTimeImmutable();
-        $this->limit($user);
+        $this->quota->consume($user);
 
         $analysis = $this->analyzer->analyze(new AnalysisRequest(description: $text));
         if (!$analysis->isFood) {
@@ -94,12 +94,16 @@ final class MealController extends AbstractController
         return $this->json(['meal' => $this->presenter->meal($meal)], 201);
     }
 
-    /** {"name", "items": [...], "eaten_at"?}: a meal entered by hand, no AI. */
+    /**
+     * {"name", "items": [...], "eaten_at"?, "source"?}: a meal entered by hand, no AI, or a
+     * picked meal suggestion (source "suggestion").
+     */
     #[Route('', methods: ['POST'])]
     public function create(Request $request, #[CurrentUser] User $user): JsonResponse
     {
         $in = Input::json($request);
-        $meal = new Meal($user, 'manual', $in->moment('eaten_at') ?? new \DateTimeImmutable());
+        $source = $in->choice('source', ['manual', 'suggestion'], false) ?? 'manual';
+        $meal = new Meal($user, $source, $in->moment('eaten_at') ?? new \DateTimeImmutable());
         $meal->setName($in->string('name', 200));
         $meal->replaceItems($this->items($in));
         $this->em->persist($meal);
@@ -141,7 +145,7 @@ final class MealController extends AbstractController
     {
         $meal = $this->find($id, $user);
         $correction = Input::json($request)->string('text', 1000);
-        $this->limit($user);
+        $this->quota->consume($user);
 
         $analysis = $this->analyzer->analyze(new AnalysisRequest(
             photoJpeg: $meal->getPhoto() ? $this->photos->bytes($meal->getPhoto()) : null,
@@ -240,15 +244,6 @@ final class MealController extends AbstractController
             throw ApiError::invalid('Posiłek musi mieć co najmniej jeden składnik.');
         }
         return $items;
-    }
-
-    private function limit(User $user): void
-    {
-        $limit = $this->analysisLimiter->create((string) $user->getId())->consume();
-        if (!$limit->isAccepted()) {
-            throw new ApiError(429, 'too_many_analyses', 'Za dużo analiz w ostatniej godzinie. Spróbuj później albo dodaj posiłek ręcznie.',
-                ['Retry-After' => (string) max(1, $limit->getRetryAfter()->getTimestamp() - time())]);
-        }
     }
 
     private function notFood(MealAnalysis $analysis): ApiError

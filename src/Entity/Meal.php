@@ -17,7 +17,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(columns: ['user_id', 'day'])]
 class Meal
 {
-    public const SOURCES = ['photo', 'text', 'manual'];
+    public const SOURCES = ['photo', 'text', 'manual', 'suggestion'];
 
     #[ORM\Id, ORM\GeneratedValue, ORM\Column]
     private ?int $id = null;

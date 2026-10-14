@@ -4,7 +4,8 @@ namespace App\Ai;
 
 /**
  * Fixed answers without any AI, for tests and for trying the app offline
- * (KALORIE_ANALYZER=fake). A description containing "kamień" is "not food".
+ * (KALORIE_ANALYZER=fake). A description containing "kamień" is "not food"; suggestions
+ * are three fixed meals, the first one named after the user's note if there is one.
  */
 final class FakeAnalyzer implements MealAnalyzer
 {
@@ -30,5 +31,19 @@ final class FakeAnalyzer implements MealAnalyzer
             'confidence' => 0.9,
             'notes' => 'Odpowiedź testowa.',
         ], 'fake');
+    }
+
+    public function suggest(SuggestionRequest $request): MealSuggestions
+    {
+        $item = fn (string $name, float $g, float $kcal, float $p, float $c, float $f) =>
+            ['name' => $name, 'portion' => "{$g} g", 'grams' => $g, 'kcal' => $kcal, 'protein_g' => $p, 'carbs_g' => $c, 'fat_g' => $f];
+        return MealSuggestions::fromOutput(['suggestions' => [
+            ['name' => $request->note ?: 'Skyr z owocami', 'why' => 'Dużo białka, mało tłuszczu.',
+                'items' => [$item('Skyr naturalny', 300, 189, 33, 12, 0), $item('Borówki', 100, 57, 1, 14, 0)]],
+            ['name' => 'Kanapki z indykiem', 'why' => 'Białko i węglowodany.',
+                'items' => [$item('Chleb żytni', 80, 200, 6, 38, 2), $item('Polędwica z indyka', 100, 100, 20, 2, 1)]],
+            ['name' => 'Twarożek z ryżem', 'why' => 'Szybko i lekko.',
+                'items' => [$item('Twaróg chudy', 200, 180, 36, 7, 1), $item('Ryż ugotowany', 150, 195, 4, 42, 0)]],
+        ], 'notes' => 'Odpowiedź testowa.'], 'fake');
     }
 }

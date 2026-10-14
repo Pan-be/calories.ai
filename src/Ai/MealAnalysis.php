@@ -25,25 +25,7 @@ final readonly class MealAnalysis
      */
     public static function fromOutput(array $out, string $model): self
     {
-        $items = [];
-        foreach (is_array($out['items'] ?? null) ? $out['items'] : [] as $item) {
-            if (!is_array($item) || trim((string) ($item['name'] ?? '')) === '') {
-                continue;
-            }
-            $num = fn (string $k, float $max) => round(min($max, max(0.0, (float) ($item[$k] ?? 0))), 1);
-            $items[] = [
-                'name' => mb_substr(trim((string) $item['name']), 0, 200),
-                'portion' => mb_substr(trim((string) ($item['portion'] ?? '')), 0, 100),
-                'grams' => $num('grams', 5000),
-                'kcal' => $num('kcal', 10000),
-                'protein_g' => $num('protein_g', 1000),
-                'carbs_g' => $num('carbs_g', 1000),
-                'fat_g' => $num('fat_g', 1000),
-            ];
-            if (count($items) === 30) {
-                break;
-            }
-        }
+        $items = self::cleanItems($out['items'] ?? null);
         $score = isset($out['health_score']) && is_numeric($out['health_score']) ? (int) round((float) $out['health_score']) : null;
         $confidence = isset($out['confidence']) && is_numeric($out['confidence']) ? (float) $out['confidence'] : null;
 
@@ -57,5 +39,34 @@ final readonly class MealAnalysis
             model: $model,
             raw: $out,
         );
+    }
+
+    /**
+     * Foods from a model answer, clamped to sane ranges; nameless entries are dropped.
+     *
+     * @return list<array{name:string, portion:string, grams:float, kcal:float, protein_g:float, carbs_g:float, fat_g:float}>
+     */
+    public static function cleanItems(mixed $raw, int $max = 30): array
+    {
+        $items = [];
+        foreach (is_array($raw) ? $raw : [] as $item) {
+            if (!is_array($item) || trim((string) ($item['name'] ?? '')) === '') {
+                continue;
+            }
+            $num = fn (string $k, float $max) => round(min($max, max(0.0, (float) ($item[$k] ?? 0))), 1);
+            $items[] = [
+                'name' => mb_substr(trim((string) $item['name']), 0, 200),
+                'portion' => mb_substr(trim((string) ($item['portion'] ?? '')), 0, 100),
+                'grams' => $num('grams', 5000),
+                'kcal' => $num('kcal', 10000),
+                'protein_g' => $num('protein_g', 1000),
+                'carbs_g' => $num('carbs_g', 1000),
+                'fat_g' => $num('fat_g', 1000),
+            ];
+            if (count($items) === $max) {
+                break;
+            }
+        }
+        return $items;
     }
 }
