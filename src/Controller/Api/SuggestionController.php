@@ -49,7 +49,7 @@ final class SuggestionController extends AbstractController
             localTime: (new \DateTimeImmutable('now', $user->zone()))->format('H:i'),
             mealsToday: array_map(fn ($m) => $m->getName(), $meals->forDay($user, $today)),
             frequent: $meals->frequent($user, $from),
-            workout: $workouts->forDay($user, $today)?->summary(),
+            workout: implode("\n", array_map(fn ($w) => $w->summary(), $workouts->forDay($user, $today))) ?: null,
             note: $note,
         );
         $result = $analyzer->suggest($suggestionRequest);

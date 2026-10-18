@@ -400,7 +400,7 @@ function renderDay(day, data, week) {
       })}
     </div>
 
-    <button class="card workout${data.workout ? '' : ' empty-w'}" id="workout">${workoutLabel(data.workout)}</button>
+    ${workoutCard(data.workouts)}
     ${day === today && remaining.kcal > 50 ? html`<button class="btn secondary" id="suggest">✨ Co zjeść?</button>` : ''}
 
     <div class="section-title">${day === today ? 'Dzisiejsze posiłki' : 'Posiłki'}</div>
@@ -415,11 +415,13 @@ function renderDay(day, data, week) {
   <button class="fab" id="fab" aria-label="Dodaj posiłek">${icon.plus}</button>`);
 
   $('#fab').addEventListener('click', () => addSheet(day));
-  $('#workout').addEventListener('click', () => workoutSheet(day, data.workout));
+  const trained = data.workouts.some((w) => !w.rest);
+  $$('[data-workout]').forEach((b) => b.addEventListener('click', () => workoutSheet(day, data.workouts.find((w) => w.id === +b.dataset.workout), trained)));
+  $('#add-workout').addEventListener('click', () => workoutSheet(day, null, trained));
   $('#suggest')?.addEventListener('click', () => suggestSheet(day, remaining));
   loadThumbs();
   // Once a day, on the first look at today: ask about training.
-  if (day === today && !data.workout && !pending.length && !askedWorkout(today)) workoutSheet(day, null, true);
+  if (day === today && !data.workouts.length && !pending.length && !askedWorkout(today)) workoutSheet(day, null, false, true);
 }
 
 function mealCard(meal) {
@@ -536,12 +538,30 @@ async function shrink(file, max = 1600) {
 // ---------- Workouts ----------
 
 const INTENSITY = [['light', 'Lekki'], ['moderate', 'Średni'], ['hard', 'Mocny']];
+const PART_OF_DAY = [['morning', 'Rano'], ['midday', 'W południe'], ['evening', 'Wieczorem']];
 
 function workoutLabel(w) {
-  if (!w) return html`<span class="em">🏋️</span><span class="t">Dodaj dzisiejszy trening</span>`;
   if (w.rest) return html`<span class="em">😴</span><span class="t">Dzień odpoczynku</span>`;
+  const part = PART_OF_DAY.find((p) => p[0] === w.part_of_day)?.[1];
   const level = INTENSITY.find((i) => i[0] === w.intensity)?.[1];
-  return html`<span class="em">🏋️</span><span class="t">${w.description}</span>${level ? html`<span class="tag">${level}</span>` : ''}`;
+  return html`<span class="em">🏋️</span><span class="t">${w.description}</span>${part ? html`<span class="tag">${part}</span>` : ''}${level ? html`<span class="tag">${level}</span>` : ''}`;
+}
+
+// The day's trainings (or rest day), each opens for editing, plus a row to add one more.
+function workoutCard(workouts) {
+  const trained = workouts.some((w) => !w.rest);
+  const addText = !workouts.length ? 'Dodaj trening' : trained ? 'Dodaj kolejny trening' : 'Jednak trening? Dodaj';
+  return html`<div class="card workouts">
+    ${workouts.map((w) => html`<button class="workout" data-workout="${w.id}">${workoutLabel(w)}</button>`)}
+    <button class="workout empty-w" id="add-workout"><span class="em">${workouts.length ? '＋' : '🏋️'}</span><span class="t">${addText}</span></button>
+  </div>`;
+}
+
+// A guess for a new training's part of day from the clock, only for today.
+function partOfDayNow(day) {
+  if (day !== localDay()) return null;
+  const h = new Date().getHours();
+  return h < 11 ? 'morning' : h < 16 ? 'midday' : 'evening';
 }
 
 // Whether today's training question was already asked (answered or skipped) on this device.
@@ -554,19 +574,42 @@ function markAskedWorkout(day) {
   try { localStorage.setItem(ASKED_KEY, day); } catch { /* remembered for this session only */ }
 }
 
-function workoutSheet(day, current, prompt = false) {
+// current: the entry to edit, or null for a new one; trained: the day already has a training
+// (then "rest day" isn't offered); prompt: the once-a-day question.
+function workoutSheet(day, current, trained, prompt = false) {
   if (prompt) markAskedWorkout(day);
-  const s = sheet(html`<h3>${prompt ? 'Trenujesz dziś?' : `Trening: ${dayTitle(day).toLowerCase()}`}</h3>
-    ${prompt ? html`<p class="hint" style="margin-top:-6px">Krótki opis wystarczy. Pomaga w podpowiedziach posiłków, a z czasem w dopasowaniu dziennego celu.</p>` : ''}
+  const done = async (request, message) => {
+    try {
+      await request();
+      closeSheet();
+      toast(message);
+      viewDay(day);
+    } catch (e) { toast(e.message, true); }
+  };
+
+  if (current?.rest) {
+    const s = sheet(html`<h3>Dzień odpoczynku</h3>
+      <p class="hint" style="margin-top:-6px">Dodanie treningu na ten dzień samo usunie odpoczynek.</p>
+      <button class="btn danger" type="button" id="wdel">Usuń dzień odpoczynku</button>`);
+    $('#wdel', s).addEventListener('click', () => done(() => api('DELETE', `/workouts/${current.id}`), 'Usunięto wpis'));
+    return;
+  }
+
+  const part = current ? current.part_of_day : partOfDayNow(day);
+  const title = prompt ? 'Trenujesz dziś?' : current ? 'Trening' : trained ? 'Kolejny trening' : `Trening: ${dayTitle(day).toLowerCase()}`;
+  const s = sheet(html`<h3>${title}</h3>
+    ${prompt ? html`<p class="hint" style="margin-top:-6px">Krótki opis wystarczy. Pomaga w podpowiedziach posiłków, a z czasem w dopasowaniu dziennego celu. Kolejny trening dodasz później.</p>` : ''}
     <form id="wkf" novalidate>
       <div class="picks" id="picks"></div>
-      <textarea class="input" name="description" maxlength="500" placeholder="np. siłownia: nogi, 60 min; bieganie 5 km">${current && !current.rest ? current.description : ''}</textarea>
-      <div class="field" style="margin-top:12px"><span>Intensywność (opcjonalnie)</span><div class="seg">
+      <textarea class="input" name="description" maxlength="500" placeholder="np. siłownia: nogi, 60 min; joga 30 min">${current ? current.description : ''}</textarea>
+      <div class="field" style="margin-top:12px"><span>Pora dnia (opcjonalnie)</span><div class="seg">
+        ${PART_OF_DAY.map(([v, t]) => html`<label><input type="radio" name="part_of_day" value="${v}" ${part === v ? 'checked' : ''}>${t}</label>`)}</div></div>
+      <div class="field"><span>Intensywność (opcjonalnie)</span><div class="seg">
         ${INTENSITY.map(([v, t]) => html`<label><input type="radio" name="intensity" value="${v}" ${current?.intensity === v ? 'checked' : ''}>${t}</label>`)}</div></div>
-      <button class="btn" type="submit">Zapisz trening</button>
-      <div class="btn-row"><button class="btn secondary" type="button" id="rest">😴 Dziś odpoczynek</button></div>
+      <button class="btn" type="submit">${current ? 'Zapisz zmiany' : 'Zapisz trening'}</button>
+      ${!current && !trained ? html`<div class="btn-row"><button class="btn secondary" type="button" id="rest">😴 Dziś odpoczynek</button></div>` : ''}
       ${prompt ? html`<button class="btn danger" type="button" id="skip" style="color:var(--muted)">Pomiń</button>` : ''}
-      ${current ? html`<button class="btn danger" type="button" id="wdel">Usuń wpis</button>` : ''}
+      ${current ? html`<button class="btn danger" type="button" id="wdel">Usuń trening</button>` : ''}
     </form>`);
 
   const f = $('#wkf', s);
@@ -578,24 +621,17 @@ function workoutSheet(day, current, prompt = false) {
     $$('.pick', box).forEach((b) => b.addEventListener('click', () => { ta.value = b.textContent; ta.focus(); }));
   }).catch(() => {});
 
-  const done = async (request, message) => {
-    try {
-      await request();
-      closeSheet();
-      toast(message);
-      viewDay(day);
-    } catch (e) { toast(e.message, true); }
-  };
   f.addEventListener('submit', (e) => {
     e.preventDefault();
     const description = ta.value.trim();
-    if (!description) { ta.focus(); return toast('Opisz trening albo wybierz „Dziś odpoczynek”.', true); }
-    const intensity = f.elements.intensity.value || undefined;
-    done(() => api('PUT', `/workouts/${day}`, { json: { description, intensity } }), 'Zapisano trening');
+    if (!description) { ta.focus(); return toast(trained || current ? 'Opisz trening.' : 'Opisz trening albo wybierz „Dziś odpoczynek”.', true); }
+    const json = { description, intensity: f.elements.intensity.value || undefined, part_of_day: f.elements.part_of_day.value || undefined };
+    if (current) done(() => api('PATCH', `/workouts/${current.id}`, { json }), 'Zapisano trening');
+    else done(() => api('POST', `/workouts/${day}`, { json }), 'Dodano trening');
   });
-  $('#rest', s).addEventListener('click', () => done(() => api('PUT', `/workouts/${day}`, { json: { rest: true } }), 'Zapisano dzień odpoczynku'));
+  $('#rest', s)?.addEventListener('click', () => done(() => api('POST', `/workouts/${day}`, { json: { rest: true } }), 'Zapisano dzień odpoczynku'));
   $('#skip', s)?.addEventListener('click', closeSheet);
-  $('#wdel', s)?.addEventListener('click', () => done(() => api('DELETE', `/workouts/${day}`), 'Usunięto wpis'));
+  $('#wdel', s)?.addEventListener('click', () => done(() => api('DELETE', `/workouts/${current.id}`), 'Usunięto trening'));
 }
 
 // ---------- Meal suggestions ----------

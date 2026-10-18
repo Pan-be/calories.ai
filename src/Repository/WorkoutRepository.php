@@ -15,9 +15,13 @@ class WorkoutRepository extends ServiceEntityRepository
         parent::__construct($registry, Workout::class);
     }
 
-    public function forDay(User $user, string $day): ?Workout
+    /** @return list<Workout> the day's entries: morning, midday, evening, then the ones without a time, each in the order added */
+    public function forDay(User $user, string $day): array
     {
-        return $this->findOneBy(['user' => $user, 'day' => $day]);
+        $rank = array_flip(Workout::PARTS_OF_DAY);
+        $entries = $this->findBy(['user' => $user, 'day' => $day], ['id' => 'ASC']);
+        usort($entries, fn (Workout $a, Workout $b) => ($rank[$a->getPartOfDay() ?? ''] ?? 3) <=> ($rank[$b->getPartOfDay() ?? ''] ?? 3));
+        return $entries;
     }
 
     /** @return list<Workout> oldest first */
@@ -26,7 +30,7 @@ class WorkoutRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('w')
             ->where('w.user = :user AND w.day >= :from')
             ->setParameter('user', $user)->setParameter('from', $from)
-            ->orderBy('w.day', 'ASC')->getQuery()->getResult();
+            ->orderBy('w.day', 'ASC')->addOrderBy('w.id', 'ASC')->getQuery()->getResult();
     }
 
     /**

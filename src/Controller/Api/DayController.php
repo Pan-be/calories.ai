@@ -47,7 +47,7 @@ final class DayController extends AbstractController
             'totals' => Presenter::round($totals),
             'remaining' => $remaining,
             'weight_kg' => $weights->findOneBy(['user' => $user, 'day' => $day])?->getWeightKg(),
-            'workout' => $workouts->forDay($user, $day)?->toArray(),
+            'workouts' => array_map(fn ($w) => $w->toArray(), $workouts->forDay($user, $day)),
             'meals' => array_map($this->presenter->meal(...), $meals),
         ]);
     }

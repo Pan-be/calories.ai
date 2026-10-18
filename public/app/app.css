@@ -574,3 +574,9 @@ textarea.input { min-height: 96px; resize: vertical; }
 .day-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; padding: 10px 12px; border-radius: 12px; background: var(--track); font-size: 14px; }
 .day-note .btn { width: auto; flex: none; margin: 0; }
 .field.when { margin-bottom: 10px; }
+
+/* Day view: the day's trainings, one row each, plus the add row. */
+.card.workouts { padding: 0; overflow: hidden; }
+.workouts .workout { background: none; border-radius: 0; }
+.workouts .workout + .workout { border-top: 1px solid var(--line); }
+.workout .tag + .tag { margin-left: -4px; }

@@ -12,7 +12,7 @@ final readonly class SuggestionRequest
      * @param list<string>                                                   $mealsToday names of today's meals
      * @param list<array{name:string, times:int, kcal:float, protein_g:float, carbs_g:float, fat_g:float}> $frequent
      *        the user's usual meals lately, most frequent first
-     * @param string|null                                                    $workout   today's training, or "odpoczynek"
+     * @param string|null                                                    $workout   today's trainings, one per line, or the rest day
      * @param string|null                                                    $note      what the user has at hand / fancies
      */
     public function __construct(

@@ -16,7 +16,8 @@ The app's interface is in Polish. The code, API and docs are in English.
   usually log. A macro that's already used up counts as a limit. One tap logs the meal
   you pick.
 - **Training log.** Once a day the app asks whether you're training: a short
-  description and an optional intensity, or a rest day. Your most frequent descriptions
+  description, an optional part of day and intensity, or a rest day. A day can hold
+  several trainings (yoga in the morning, gym in the evening). Your most frequent descriptions
   show up as quick picks. For now it's context for suggestions; later it's meant to
   help adjust the daily goal from your real intake and weight trend.
 - **Goals:** computed from your profile (Mifflin-St Jeor × activity, deficit or surplus
@@ -79,8 +80,10 @@ Typical timings with `sonnet`: about 6 s per photo, about 20–25 s for three su
 | GET | `/api/meals/{id}/photo[?size=thumb]` | |
 | POST | `/api/suggestions` | `{note?}` → `{remaining, suggestions[3], notes}`; nothing is saved |
 | GET | `/api/workouts?days=30` | `{entries[], frequent[]}` |
-| PUT/DELETE | `/api/workouts/{YYYY-MM-DD}` | `{description, intensity?}` or `{rest: true}`; one entry per day |
-| GET | `/api/days/{YYYY-MM-DD}` | goals, totals, remaining, meals, weight, workout |
+| POST | `/api/workouts/{YYYY-MM-DD}` | one more training `{description, intensity?, part_of_day?}`, or `{rest: true}` while the day has none |
+| PATCH/DELETE | `/api/workouts/{id}` | edit (replaces description, intensity, part_of_day) / delete one entry |
+| PUT | `/api/workouts/{YYYY-MM-DD}` | older app versions: replaces the whole day with one entry |
+| GET | `/api/days/{YYYY-MM-DD}` | goals, totals, remaining, meals, weight, workouts[] |
 | GET | `/api/summary?days=7&end=` | per-day totals |
 | GET/POST/DELETE | `/api/weights`, `/api/weights/{day}` | |
 | GET | `/api/health` | database and bridge status |
