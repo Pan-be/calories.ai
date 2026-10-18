@@ -41,6 +41,29 @@ final class MealTest extends ApiTestCase
         $this->assertSame('2026-10-13', $body['meal']['day']);
     }
 
+    public function testMovingAMealToAnotherDay(): void
+    {
+        $token = $this->register();
+        $this->completeProfile($token);
+        // Logged on the wrong day (the one open in the app), then moved by editing the date only.
+        [, $body] = $this->api('POST', '/api/meals', ['name' => 'Czekolada', 'eaten_at' => '2026-10-14T19:45:00+02:00', 'items' => [['name' => 'Czekolada', 'kcal' => 200]]], $token);
+        $id = $body['meal']['id'];
+        [$status, $body] = $this->api('PATCH', "/api/meals/$id", ['eaten_at' => '2026-10-16T19:45:00+02:00'], $token);
+        $this->assertSame(200, $status);
+        $this->assertSame('2026-10-16', $body['meal']['day']);
+        $this->assertEquals(200, $body['meal']['totals']['kcal']);
+
+        [, $old] = $this->api('GET', '/api/days/2026-10-14', token: $token);
+        $this->assertSame([], $old['meals']);
+        [, $new] = $this->api('GET', '/api/days/2026-10-16', token: $token);
+        $this->assertSame([$id], array_column($new['meals'], 'id'));
+
+        // Editing the items keeps the date.
+        $this->api('PATCH', "/api/meals/$id", ['items' => [['name' => 'Czekolada', 'grams' => 50, 'kcal' => 270]]], $token);
+        [, $body] = $this->api('GET', "/api/meals/$id", token: $token);
+        $this->assertSame('2026-10-16T19:45:00+02:00', $body['meal']['eaten_at']);
+    }
+
     public function testMealFromPhoto(): void
     {
         $token = $this->register();

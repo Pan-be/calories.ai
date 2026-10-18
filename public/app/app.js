@@ -207,6 +207,11 @@ function go(path) {
   else location.hash = path;
 }
 
+// Today lives on the home screen, so a #/day/<date> left open never turns into "some old day" later.
+function goDay(day) {
+  go(day === localDay() ? '/' : `/day/${day}`);
+}
+
 onLoggedOut(() => {
   state.user = null;
   forgetPhotos();
@@ -436,8 +441,11 @@ async function loadThumbs(root = app) {
 
 // ---------- Adding meals ----------
 
-function addSheet(day) {
+function addSheet(viewDay) {
+  let day = viewDay;
   const s = sheet(html`<h3>Dodaj posiłek</h3>
+    ${day !== localDay() ? html`<div class="day-note" id="day-note"><span>Dodajesz do: <b>${dayTitle(day)}</b></span>
+      <button class="btn secondary small" id="to-today">Na dziś</button></div>` : ''}
     <div class="tiles">
       <label class="tile">${icon.camera}Zrób zdjęcie<input type="file" accept="image/*" capture="environment" data-photo-input></label>
       <label class="tile">${icon.image}Z galerii<input type="file" accept="image/*" data-photo-input></label>
@@ -451,6 +459,7 @@ function addSheet(day) {
     closeSheet();
     if (file) analyzePhoto(file, day);
   }));
+  $('#to-today', s)?.addEventListener('click', () => { day = localDay(); $('#day-note', s).remove(); });
   $('#describe', s).addEventListener('click', () => describeSheet(day));
   $('#manual', s).addEventListener('click', () => { closeSheet(); go(`/meal/new/${day}`); });
 }
@@ -690,7 +699,7 @@ function editor(meal) {
       ${meal.photo_url ? html`<div class="photo-hero" data-photo="${meal.photo_url}">${top}</div>` : top}
       <div class="${meal.photo_url ? 'detail' : ''}">
         <div class="card">
-          <div class="meta"><input type="datetime-local" id="when" value="${local}" style="border:0;background:none;color:inherit;font-size:14px;padding:0"></div>
+          <label class="field when"><span>Data i godzina</span><input class="input" type="datetime-local" id="when" value="${local}"></label>
           <textarea class="name-input" id="name" rows="1" placeholder="Nazwa posiłku" maxlength="200" aria-label="Nazwa posiłku">${draft.name}</textarea>
           <div class="totals">
             <div class="kc">${ring(1, 1, 44, 5, 'var(--kcal)', '🔥')}<div><div class="hint">Kalorie</div><div class="v">${n0(t.kcal)}</div></div></div>
@@ -753,7 +762,7 @@ function editor(meal) {
       const body = { name: draft.name, eaten_at: draft.eaten_at, items: draft.items };
       const res = meal.id ? await api('PATCH', `/meals/${meal.id}`, { json: body }) : await api('POST', '/meals', { json: body });
       toast(meal.id ? 'Zapisano' : 'Dodano posiłek');
-      go(`/day/${res.meal.day}`);
+      goDay(res.meal.day);
     } catch (e) {
       toast(e.message, true);
       $('#save').disabled = false;
@@ -797,7 +806,7 @@ function editor(meal) {
         await api('DELETE', `/meals/${meal.id}`);
         closeSheet();
         toast('Usunięto');
-        go(`/day/${meal.day}`);
+        goDay(meal.day);
       } catch (e) { toast(e.message, true); }
     });
   }
@@ -1010,9 +1019,14 @@ function viewSettings() {
 
 route();
 
-// Re-check the day when coming back to the app after a while (the date may have changed).
+// Coming back to the app after a while or on another date: show today, also from a day view, so a
+// meal added right after resuming lands on today and not on a day left open earlier.
 let hiddenAt = 0;
+let hiddenDay = localDay();
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { hiddenAt = Date.now(); return; }
-  if (Date.now() - hiddenAt > 10 * 60 * 1000 && ['', '#', '#/'].includes(location.hash) && !state.pending.length) route();
+  if (document.hidden) { hiddenAt = Date.now(); hiddenDay = localDay(); return; }
+  if (state.pending.length) return;
+  const stale = Date.now() - hiddenAt > 10 * 60 * 1000 || localDay() !== hiddenDay;
+  const onDayView = ['', '#', '#/'].includes(location.hash) || location.hash.startsWith('#/day/');
+  if (stale && onDayView) go('/');
 });

@@ -569,3 +569,8 @@ textarea.input { min-height: 96px; resize: vertical; }
 .sugg details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
 .sugg details .list-row { font-size: 14px; }
 .sugg .btn { align-self: flex-start; }
+
+/* Add sheet: the meal goes to a day other than today. */
+.day-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; padding: 10px 12px; border-radius: 12px; background: var(--track); font-size: 14px; }
+.day-note .btn { width: auto; flex: none; margin: 0; }
+.field.when { margin-bottom: 10px; }
