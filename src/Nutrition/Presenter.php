@@ -10,7 +10,7 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 /** The API's JSON shapes for users and meals, in one place. */
 final class Presenter
 {
-    public function __construct(private UrlGeneratorInterface $urls, private WeightEntryRepository $weights)
+    public function __construct(private UrlGeneratorInterface $urls, private WeightEntryRepository $weights, private GoalCalculator $calculator)
     {
     }
 
@@ -32,6 +32,8 @@ final class Presenter
                 'complete' => $user->hasProfile() && $weightKg !== null,
             ],
             'goals' => $user->getGoals() + ['manual' => $user->areGoalsManual()],
+            // How the automatic goal is worked out (also shown when the goals are manual), null without a profile.
+            'goal_breakdown' => $this->calculator->forUser($user, $weightKg, new \DateTimeImmutable('now', $user->zone())),
         ];
     }
 

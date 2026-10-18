@@ -18,7 +18,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     public const SEXES = ['male', 'female'];
     public const ACTIVITY = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
-    public const GOALS = ['lose', 'maintain', 'gain'];
+    public const GOALS = ['lose', 'maintain', 'recomp', 'gain'];
 
     #[ORM\Id, ORM\GeneratedValue, ORM\Column]
     private ?int $id = null;

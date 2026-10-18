@@ -267,7 +267,13 @@ const ACTIVITY = [
   ['active', 'Bardzo aktywny', 'Trening 6–7 razy w tygodniu'],
   ['very_active', 'Ekstremalnie aktywny', 'Praca fizyczna i codzienny trening'],
 ];
-const GOALS = [['lose', 'Schudnąć'], ['maintain', 'Utrzymać wagę'], ['gain', 'Przytyć']];
+const GOALS = [
+  ['lose', 'Schudnąć', 'Deficyt do 500 kcal dziennie'],
+  ['maintain', 'Utrzymać wagę', 'Tyle, ile spalasz'],
+  ['recomp', 'Rekompozycja', 'Mięśnie w górę, tłuszcz w dół: mały deficyt, dużo białka'],
+  ['gain', 'Przytyć', 'Nadwyżka 300 kcal dziennie'],
+];
+const SEXES = { male: 'Mężczyzna', female: 'Kobieta' };
 
 function viewProfile(welcome) {
   const p = state.user.profile;
@@ -292,7 +298,10 @@ function viewProfile(welcome) {
         ${ACTIVITY.map(([v, t, d]) => html`<label class="option"><input type="radio" name="activity" value="${v}" ${p.activity === v ? 'checked' : ''}>
           <div><div class="t">${t}</div><div class="d">${d}</div></div></label>`)}
       </div></div>
-      <div class="field"><span>Cel</span><div class="seg">${GOALS.map(([v, t]) => radio('goal', v, p.goal, t))}</div></div>
+      <div class="field"><span>Cel</span><div class="options">
+        ${GOALS.map(([v, t, d]) => html`<label class="option"><input type="radio" name="goal" value="${v}" ${p.goal === v ? 'checked' : ''}>
+          <div><div class="t">${t}</div><div class="d">${d}</div></div></label>`)}
+      </div></div>
       <label class="field"><span>Waga docelowa (kg, opcjonalnie)</span><input class="input" type="number" inputmode="decimal" step="any" name="target_weight_kg" value="${p.target_weight_kg ?? ''}" min="25" max="400"></label>
       ${!welcome && state.user.goals.manual ? html`<label class="field" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="reset_goals" value="true"> <span style="margin:0">Przelicz cele od nowa (teraz ustawione ręcznie)</span></label>` : ''}
       <button class="btn" type="submit">${welcome ? 'Policz mój cel' : 'Zapisz'}</button>
@@ -952,6 +961,21 @@ function kcalChart(days, goal) {
 
 // ---------- Settings ----------
 
+// How the automatic calorie goal is worked out, step by step.
+function goalBreakdown(b, goal, manual) {
+  if (!b) return '';
+  const goalLabel = GOALS.find((x) => x[0] === goal)?.[1] || 'cel';
+  const sign = b.adjust_kcal > 0 ? '+' : b.adjust_kcal < 0 ? '−' : '±';
+  return html`<div class="card"><h2>Jak liczony jest cel</h2>
+    <div class="list-row"><span>Przemiana podstawowa (BMR)</span><b>${n0(b.bmr)} kcal</b></div>
+    <div class="list-row"><span>× aktywność ${b.activity_factor.toLocaleString('pl-PL', { maximumFractionDigits: 3 })} = spalasz</span><b>${n0(b.tdee)} kcal</b></div>
+    <div class="list-row"><span>${goalLabel}</span><b>${sign} ${n0(Math.abs(b.adjust_kcal))} kcal</b></div>
+    <div class="list-row"><span>Cel dzienny</span><b>${n0(b.kcal)} kcal</b></div>
+    <div class="list-row"><span>Białko (${nf1.format(b.protein_per_kg)} g/kg)</span><b>${n0(b.protein_g)} g</b></div>
+    <p class="hint" style="margin:10px 2px 0">Wzór Mifflina-St Jeora z płci, wieku, wzrostu i ostatniej wagi. Tłuszcz to 27% kalorii, reszta to węglowodany.${manual ? ' Teraz używasz celów ustawionych ręcznie.' : ''}</p>
+  </div>`;
+}
+
 function viewSettings() {
   const u = state.user;
   const g = u.goals;
@@ -961,11 +985,13 @@ function viewSettings() {
   mount(html`<div class="screen">
     <div class="topbar"><h1>Ustawienia</h1></div>
     <div class="card"><h2>Profil</h2>
+      <div class="list-row"><span>Płeć</span><b>${SEXES[p.sex] || '–'}</b></div>
       <div class="list-row"><span>Waga</span><b>${p.weight_kg ? `${n1(p.weight_kg)} kg` : '–'}</b></div>
       <div class="list-row"><span>Wzrost</span><b>${p.height_cm ? `${n0(p.height_cm)} cm` : '–'}</b></div>
       <div class="list-row"><span>Aktywność</span><b>${actLabel}</b></div>
       <div class="list-row"><span>Cel</span><b>${goalLabel}</b></div>
       <a class="btn secondary small" href="#/profile" style="margin-top:10px">Zmień profil</a></div>
+    ${goalBreakdown(u.goal_breakdown, p.goal, g.manual)}
     <div class="card"><h2>Dzienne cele ${g.manual ? html`<span class="hint" style="font-weight:400">(ręczne)</span>` : html`<span class="hint" style="font-weight:400">(automatyczne)</span>`}</h2>
       <form id="gf"><div class="grid2">
         <label class="field"><span>Kalorie</span><input class="input" type="number" inputmode="numeric" name="kcal" value="${g.kcal}" min="800" max="8000"></label>

@@ -20,7 +20,9 @@ The app's interface is in Polish. The code, API and docs are in English.
   show up as quick picks. For now it's context for suggestions; later it's meant to
   help adjust the daily goal from your real intake and weight trend.
 - **Goals:** computed from your profile (Mifflin-St Jeor × activity, deficit or surplus
-  for your goal, 1.6–2.0 g protein per kg, 27% fat), or set by hand.
+  for your goal, 1.6–2.2 g protein per kg, 27% fat), or set by hand. Goals: lose, maintain,
+  body recomposition (−10% up to 300 kcal, 2.2 g/kg protein), gain. Settings show how the
+  number was worked out.
 - **Progress:** weight log with a chart, 14-day calorie chart, week strip.
 - **Installable web app:** mobile first, light and dark mode, no build step.
 - **One JSON API** with bearer tokens, so a native iOS app can use it later.
@@ -67,7 +69,7 @@ Typical timings with `sonnet`: about 6 s per photo, about 20–25 s for three su
 | Method | Path | |
 |---|---|---|
 | POST | `/api/auth/register`, `/api/auth/login`, `/api/auth/logout` | `{email, password}` → `{token, user}` |
-| GET/PUT | `/api/me`, `/api/me/profile`, `/api/me/goals`, `/api/me/password` | profile → computed goals; `{auto: true}` resets manual goals |
+| GET/PUT | `/api/me`, `/api/me/profile`, `/api/me/goals`, `/api/me/password` | profile → computed goals (`goal_breakdown` in the user); `{auto: true}` resets manual goals |
 | POST | `/api/meals/photo` | multipart `photo`, `note?`, `eaten_at?` |
 | POST | `/api/meals/describe` | `{text, eaten_at?}` |
 | POST | `/api/meals` | `{name, items[], eaten_at?, source?}`; `source` is `manual` (default) or `suggestion` |

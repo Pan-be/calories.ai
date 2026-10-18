@@ -20,6 +20,32 @@ final class ProfileTest extends ApiTestCase
         $this->assertFalse($user['goals']['manual']);
     }
 
+    public function testRecompositionGoal(): void
+    {
+        $token = $this->register();
+        $this->completeProfile($token);
+        [$status, $body] = $this->api('PUT', '/api/me/profile', [
+            'sex' => 'male', 'birth_date' => '1990-05-01', 'height_cm' => 180, 'weight_kg' => 80,
+            'activity' => 'moderate', 'goal' => 'recomp', 'timezone' => 'Europe/Warsaw',
+        ], $token);
+        $this->assertSame(200, $status, json_encode($body));
+        $age = (new \DateTimeImmutable('1990-05-01'))->diff(new \DateTimeImmutable())->y;
+        $tdee = (800 + 1125 - 5 * $age + 5) * 1.55;
+        // 10% under TDEE, at most 300 kcal; 2.2 g protein per kg.
+        $kcal = (int) (round(($tdee - min(300, $tdee * 0.1)) / 10) * 10);
+        $user = $body['user'];
+        $this->assertSame('recomp', $user['profile']['goal']);
+        $this->assertSame($kcal, $user['goals']['kcal']);
+        $this->assertSame(176, $user['goals']['protein_g']);
+
+        $b = $user['goal_breakdown'];
+        $this->assertSame((int) round($tdee), $b['tdee']);
+        $this->assertSame(1.55, $b['activity_factor']);
+        $this->assertSame($kcal - (int) round($tdee), $b['adjust_kcal']);
+        $this->assertSame(2.2, $b['protein_per_kg']);
+        $this->assertSame($kcal, $b['kcal']);
+    }
+
     public function testManualGoalsSurviveNewWeightUntilAuto(): void
     {
         $token = $this->register();
