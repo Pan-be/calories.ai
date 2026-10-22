@@ -14,6 +14,7 @@ final class Presenter
     {
     }
 
+    /** @return array<string, mixed> */
     public function user(User $user): array
     {
         $weightKg = $this->weights->latest($user)?->getWeightKg();
@@ -37,6 +38,7 @@ final class Presenter
         ];
     }
 
+    /** @return array<string, mixed> */
     public function meal(Meal $meal): array
     {
         return [
@@ -57,7 +59,10 @@ final class Presenter
         ];
     }
 
-    /** @param array<string, float> $values */
+    /**
+     * @param array<string, float> $values
+     * @return array<string, float>
+     */
     public static function round(array $values): array
     {
         return array_map(fn ($v) => round($v, 1), $values);

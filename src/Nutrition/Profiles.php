@@ -37,7 +37,11 @@ final class Profiles
         return $entry;
     }
 
-    /** Re-compute automatic goals from the profile and latest weight; null if not possible. */
+    /**
+     * Re-compute automatic goals from the profile and latest weight; null if not possible.
+     *
+     * @return array{kcal:int, protein_g:int, carbs_g:int, fat_g:int, bmr:int, tdee:int, activity_factor:float, adjust_kcal:int, protein_per_kg:float}|null
+     */
     public function refreshGoals(User $user, bool $force = false): ?array
     {
         $computed = $this->calculator->forUser(

@@ -11,11 +11,13 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 class ApiError extends HttpException
 {
+    /** @param array<string, string> $headers */
     public function __construct(int $status, public readonly string $errorCode, string $message, array $headers = [])
     {
         parent::__construct($status, $message, null, $headers);
     }
 
+    /** @param array<string, string> $headers */
     public static function response(int $status, string $code, string $message, array $headers = []): JsonResponse
     {
         return new JsonResponse(['error' => ['code' => $code, 'message' => $message]], $status, $headers);

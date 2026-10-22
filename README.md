@@ -115,6 +115,8 @@ docker run --rm -u 1000:1000 -e HOME=/tmp -v $PWD:/app -w /app kalorie-php:dev p
 
 The tests use the fake engine and never call Claude.
 
+`bin/check` runs every check in the dev image (composer validate, `lint:container`, `lint:yaml`, phpstan, PHPUnit) and exits non-zero if any fails.
+
 ## Deployment
 
 `deploy/compose.yaml` runs two containers (`kalorie-php`, `kalorie-nginx`) from a

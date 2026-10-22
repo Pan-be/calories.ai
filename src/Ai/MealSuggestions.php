@@ -11,7 +11,11 @@ final readonly class MealSuggestions
     {
     }
 
-    /** From the model's structured output (SuggestionPrompt::SCHEMA), cleaned like MealAnalysis. */
+    /**
+     * From the model's structured output (SuggestionPrompt::SCHEMA), cleaned like MealAnalysis.
+     *
+     * @param array<string, mixed> $out
+     */
     public static function fromOutput(array $out, string $model): self
     {
         $suggestions = [];

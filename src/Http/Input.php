@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Request;
  */
 final class Input
 {
+    /** @param array<string, mixed> $data */
     private function __construct(private array $data)
     {
     }

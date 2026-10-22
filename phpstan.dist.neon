@@ -1,0 +1,23 @@
+parameters:
+    level: 6
+    paths:
+        - bin/
+        - config/
+        - public/
+        - src/
+        - tests/
+    excludePaths:
+        - public/bundles/ (?)
+    symfony:
+        containerXmlPath: var/cache/dev/App_KernelDevDebugContainer.xml
+    ignoreErrors:
+        # Doctrine assigns ids and reads mapped fields itself; phpstan can't see that
+        -
+            identifiers:
+                - property.onlyWritten
+                - property.unusedType
+            path: src/Entity/*
+        # Symfony's generated bootstrap keeps the check for older Dotenv versions
+        -
+            identifier: function.alreadyNarrowedType
+            path: tests/bootstrap.php

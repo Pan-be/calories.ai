@@ -6,6 +6,7 @@ final readonly class MealAnalysis
 {
     /**
      * @param list<array{name:string, portion:string, grams:float, kcal:float, protein_g:float, carbs_g:float, fat_g:float}> $items
+     * @param array<string, mixed> $raw the model's answer as it came
      */
     public function __construct(
         public bool $isFood,
@@ -22,6 +23,8 @@ final readonly class MealAnalysis
     /**
      * From the model's structured output (MealPrompt::SCHEMA). Values are clamped and
      * cleaned rather than trusted, so a sloppy answer can't break the app.
+     *
+     * @param array<string, mixed> $out
      */
     public static function fromOutput(array $out, string $model): self
     {

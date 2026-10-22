@@ -31,7 +31,7 @@ final readonly class SuggestionRequest
     {
         $out = [];
         foreach ($this->goals as $k => $goal) {
-            $out[$k] = round(max(0.0, $goal - ($this->eaten[$k] ?? 0)), 1);
+            $out[$k] = round(max(0.0, $goal - $this->eaten[$k]), 1);
         }
         return $out;
     }

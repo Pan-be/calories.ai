@@ -56,6 +56,10 @@ final class ClaudeBridgeAnalyzer implements MealAnalyzer
         return $suggestions;
     }
 
+    /**
+     * @param array<string, mixed> $body
+     * @return array<string, mixed>
+     */
     private function post(string $path, array $body): array
     {
         $ch = curl_init('http://bridge' . $path);

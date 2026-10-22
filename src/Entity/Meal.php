@@ -59,7 +59,7 @@ class Meal
     #[ORM\Column(length: 60, nullable: true)]
     private ?string $aiModel = null;
 
-    /** The last raw analysis, kept for "fix it" follow-ups and debugging. */
+    /** @var array<string, mixed>|null the last raw analysis, kept for "fix it" follow-ups and debugging */
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $analysis = null;
 
@@ -98,6 +98,7 @@ class Meal
     public function getConfidence(): ?float { return $this->confidence; }
     public function getNotes(): ?string { return $this->notes; }
     public function getAiModel(): ?string { return $this->aiModel; }
+    /** @return array<string, mixed>|null */
     public function getAnalysis(): ?array { return $this->analysis; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
@@ -108,6 +109,7 @@ class Meal
         $this->day = $at->setTimezone($this->user->zone())->format('Y-m-d');
     }
 
+    /** @param array<string, mixed>|null $raw */
     public function setAnalysisInfo(?int $healthScore, ?float $confidence, ?string $notes, ?string $model, ?array $raw): void
     {
         $this->healthScore = $healthScore;
@@ -124,7 +126,7 @@ class Meal
     public function replaceItems(array $items): void
     {
         $this->items->clear();
-        foreach (array_values($items) as $i => $item) {
+        foreach ($items as $i => $item) {
             $item->attach($this, $i);
             $this->items->add($item);
         }

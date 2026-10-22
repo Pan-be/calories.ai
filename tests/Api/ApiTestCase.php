@@ -24,7 +24,12 @@ abstract class ApiTestCase extends WebTestCase
         (new Filesystem())->remove(static::getContainer()->getParameter('kernel.project_dir') . '/var/test-photos');
     }
 
-    /** @return array{0:int, 1:array} status and decoded JSON */
+    /**
+     * @param array<string, mixed>|null $body
+     * @param array<string, mixed> $files
+     * @param array<string, mixed> $form
+     * @return array{0:int, 1:array<string, mixed>} status and decoded JSON
+     */
     protected function api(string $method, string $uri, ?array $body = null, ?string $token = null, array $files = [], array $form = []): array
     {
         $server = ['HTTP_ACCEPT' => 'application/json'];
@@ -48,6 +53,7 @@ abstract class ApiTestCase extends WebTestCase
         return $body['token'];
     }
 
+    /** @return array<string, mixed> */
     protected function completeProfile(string $token): array
     {
         [$status, $body] = $this->api('PUT', '/api/me/profile', [

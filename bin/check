@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Runs every mechanical check (composer, Symfony lints, phpstan, PHPUnit) in the
+# dev image, since the project needs PHP 8.4+. Exits non-zero if any check fails.
+# Usage: bin/check   (build the image first, see README "Development")
+set -uo pipefail
+
+cd "$(dirname "$0")/.."
+IMAGE="${KALORIE_DEV_IMAGE:-kalorie-php:dev}"
+run() { docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/app" -w /app "$IMAGE" "$@"; }
+
+failed=()
+step() {
+    local name="$1"; shift
+    echo "==> $name"
+    if run "$@"; then echo "    ok"; else failed+=("$name"); echo "    FAILED"; fi
+}
+
+step "composer validate" composer validate --strict --no-check-publish
+# phpstan reads the dev container XML, so warm the dev cache first
+step "cache warmup" php bin/console cache:warmup --env=dev
+step "lint:container" php bin/console lint:container
+step "lint:yaml" php bin/console lint:yaml config/ --parse-tags
+step "phpstan" vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+step "phpunit" php bin/phpunit
+
+echo
+if ((${#failed[@]})); then
+    echo "check FAILED: ${failed[*]}"
+    exit 1
+fi
+echo "check OK"

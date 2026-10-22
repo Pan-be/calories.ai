@@ -86,6 +86,9 @@ Install `symfony/test-pack` if it isn't already. Functional/HTTP tests extend
 until it has a test that exercises it the way a caller would, an HTTP request for
 a controller or a service call for a service, not just "it didn't throw."
 
+Before calling a change done, run `bin/check` (lints, phpstan, PHPUnit in the dev
+image; local PHP is too old) and get it green.
+
 ## Code style
 
 Symfony's coding standard, the `@Symfony` php-cs-fixer ruleset (a PSR-12-derived

@@ -7,7 +7,7 @@ final readonly class AnalysisRequest
     /**
      * @param string|null $photoJpeg   the meal photo (JPEG bytes), if any
      * @param string|null $description what the user wrote about the meal
-     * @param array|null  $previous    an earlier analysis to correct: {name, items}
+     * @param array<string, mixed>|null $previous an earlier analysis to correct: {name, items}
      * @param string|null $correction  what the user says is wrong with $previous
      */
     public function __construct(
