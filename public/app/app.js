@@ -862,7 +862,6 @@ function editor(meal) {
 // One ingredient: changing grams scales the nutrition values, which can also be edited directly.
 function itemSheet(item, done) {
   const base = item ? { ...item } : { name: '', portion: '', grams: 100, kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
-  const per = base.grams > 0 ? { kcal: base.kcal / base.grams, protein_g: base.protein_g / base.grams, carbs_g: base.carbs_g / base.grams, fat_g: base.fat_g / base.grams } : null;
   const num = (name, label, value) => html`<label class="field"><span>${label}</span>
     <input class="input" type="number" inputmode="decimal" step="any" min="0" name="${name}" value="${Math.round(value * 10) / 10}"></label>`;
 
@@ -876,18 +875,29 @@ function itemSheet(item, done) {
         <button type="button" data-step="10">+</button></div></div>
       <div class="grid2">${num('kcal', 'Kalorie', base.kcal)}${num('protein_g', 'Białko (g)', base.protein_g)}
         ${num('carbs_g', 'Węglowodany (g)', base.carbs_g)}${num('fat_g', 'Tłuszcze (g)', base.fat_g)}</div>
-      ${per ? html`<p class="hint" style="margin-top:0">Zmiana gramatury przelicza kalorie i makro proporcjonalnie.</p>` : ''}
+      ${base.grams > 0 ? html`<p class="hint" style="margin-top:0">Zmiana gramatury przelicza kalorie i makro proporcjonalnie.</p>` : ''}
       <button class="btn" type="submit">Gotowe</button>
       ${item ? html`<button class="btn danger" type="button" id="rm" style="margin-top:6px">Usuń składnik</button>` : ''}
     </form>`);
 
   const f = $('#itf', s);
   const grams = f.elements.grams;
-  const rescale = () => {
-    if (!per) return;
-    const g = Math.max(0, +grams.value || 0);
-    for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g']) f.elements[k].value = Math.round(per[k] * g * 10) / 10;
+  const nutrients = ['kcal', 'protein_g', 'carbs_g', 'fat_g'];
+  const val = (el) => Math.max(0, +String(el.value).replace(',', '.') || 0);
+  // Per-gram values follow the fields, so a value typed by hand is what a grams change
+  // scales (a new ingredient starts at 100 g / 0 kcal; scaling the original wiped it).
+  let per = null;
+  const updatePer = () => {
+    const g = val(grams);
+    per = g > 0 ? Object.fromEntries(nutrients.map((k) => [k, val(f.elements[k]) / g])) : null;
   };
+  const rescale = () => {
+    const g = val(grams);
+    if (!per || g === 0) return; // a cleared grams field keeps the values until new grams are typed
+    for (const k of nutrients) f.elements[k].value = Math.round(per[k] * g * 10) / 10;
+  };
+  updatePer();
+  for (const k of nutrients) f.elements[k].addEventListener('input', updatePer);
   grams.addEventListener('input', rescale);
   $$('[data-step]', s).forEach((b) => b.addEventListener('click', () => {
     grams.value = Math.max(0, (+grams.value || 0) + +b.dataset.step);
