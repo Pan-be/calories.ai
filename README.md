@@ -115,7 +115,9 @@ docker run --rm -u 1000:1000 -e HOME=/tmp -v $PWD:/app -w /app kalorie-php:dev p
 
 The tests use the fake engine and never call Claude.
 
-`bin/check` runs every check in the dev image (composer validate, `lint:container`, `lint:yaml`, phpstan, PHPUnit) and exits non-zero if any fails.
+`bin/check` runs every check in Docker (the dev image; the UI tests also use the Playwright image) (composer validate, `lint:container`, `lint:yaml`, phpstan, PHPUnit, UI tests) and exits non-zero if any fails.
+
+UI tests (`tests/ui/*.test.mjs`, `node:test` + headless Chromium at iPhone size) run with `bin/ui-test [file]`: a throwaway backend (`php -S`, fake analyzer, database in the container) and the Playwright image on a private Docker network, both removed afterwards.
 
 ## Deployment
 

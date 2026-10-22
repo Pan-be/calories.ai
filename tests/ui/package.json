@@ -1,0 +1,9 @@
+{
+  "name": "kalorie-ui-tests",
+  "private": true,
+  "type": "module",
+  "description": "UI tests for the web app, run by bin/ui-test (headless Chromium in the Playwright image)",
+  "devDependencies": {
+    "playwright-core": "1.63.0"
+  }
+}

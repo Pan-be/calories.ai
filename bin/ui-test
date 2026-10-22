@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# UI tests: the app on a throwaway backend (php -S in the dev image, fake analyzer,
+# database in the container's /tmp) and node --test with headless Chromium in the
+# Playwright image, on a private Docker network. Both containers are --rm and are
+# stopped on exit. Usage: bin/ui-test [test file under tests/ui/ ...]
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+PHP_IMAGE="${KALORIE_DEV_IMAGE:-kalorie-php:dev}"
+# must be the same version as playwright-core in tests/ui/package.json (the browsers come from the image)
+PW_IMAGE=mcr.microsoft.com/playwright:v1.63.0-noble
+NET="kalorie-ui-$$"
+APP="kalorie-ui-$$"
+user="$(id -u):$(id -g)"
+
+cleanup() {
+    docker stop "$APP" >/dev/null 2>&1 || true
+    docker network rm "$NET" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+docker network create "$NET" >/dev/null
+docker run -d --rm --name "$APP" --network "$NET" --network-alias kalorie-ui -u "$user" -e HOME=/tmp \
+    -e APP_ENV=dev -e DATABASE_URL='sqlite:////tmp/ui.db' -e KALORIE_PHOTO_DIR=/tmp/photos \
+    -e KALORIE_ANALYZER=fake -e KALORIE_REGISTRATION=open -e KALORIE_ANALYSES_PER_HOUR=1000 \
+    -v "$PWD:/app" -w /app "$PHP_IMAGE" \
+    sh -c 'php bin/console doctrine:migrations:migrate -n -q && exec php -S 0.0.0.0:8000 -t public tests/ui/router.php' >/dev/null
+
+ready=
+for _ in $(seq 1 30); do
+    if docker exec "$APP" php -r 'exit(@file_get_contents("http://127.0.0.1:8000/api/health") === false ? 1 : 0);' 2>/dev/null; then ready=1; break; fi
+    sleep 1
+done
+[ -n "$ready" ] || { echo "backend did not start:"; docker logs "$APP" 2>&1 | tail -20; exit 1; }
+
+files=("$@")
+[ ${#files[@]} -gt 0 ] || files=(tests/ui/*.test.mjs)
+docker run --rm --network "$NET" -u "$user" -e HOME=/tmp -v "$PWD:/app" -w /app/tests/ui "$PW_IMAGE" \
+    sh -c 'cmp -s package-lock.json node_modules/.installed-lock || { npm ci --silent --no-fund --no-audit && cp package-lock.json node_modules/.installed-lock; }; exec node --test "$@"' sh "${files[@]#tests/ui/}"

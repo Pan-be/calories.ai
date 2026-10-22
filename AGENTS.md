@@ -86,8 +86,13 @@ Install `symfony/test-pack` if it isn't already. Functional/HTTP tests extend
 until it has a test that exercises it the way a caller would, an HTTP request for
 a controller or a service call for a service, not just "it didn't throw."
 
-Before calling a change done, run `bin/check` (lints, phpstan, PHPUnit in the dev
-image; local PHP is too old) and get it green.
+Frontend behaviour gets a UI test in `tests/ui/` (`node:test`, helpers in
+`tests/ui/lib.mjs`, run with `bin/ui-test`). A bug fix's test must fail on the
+code before the fix. The `tests` skill, where installed, writes them from the
+request before the code.
+
+Before calling a change done, run `bin/check` (lints, phpstan, PHPUnit and UI tests
+in Docker; local PHP is too old) and get it green.
 
 ## Review gate
 

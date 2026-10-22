@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Runs every mechanical check (composer, Symfony lints, phpstan, PHPUnit) in the
-# dev image, since the project needs PHP 8.4+. Exits non-zero if any check fails.
+# Runs every mechanical check (composer, Symfony lints, phpstan, PHPUnit, UI tests) in
+# Docker: the dev image, since the project needs PHP 8.4+, and for the UI tests also the
+# Playwright image (first run pulls it and installs playwright-core). Exits non-zero if
+# any check fails.
 # Usage: bin/check   (build the image first, see README "Development")
 set -uo pipefail
 
@@ -22,6 +24,8 @@ step "lint:container" php bin/console lint:container
 step "lint:yaml" php bin/console lint:yaml config/ --parse-tags
 step "phpstan" vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 step "phpunit" php bin/phpunit
+echo "==> ui tests"
+if bin/ui-test; then echo "    ok"; else failed+=("ui tests"); echo "    FAILED"; fi
 
 echo
 if ((${#failed[@]})); then
