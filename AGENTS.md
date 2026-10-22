@@ -89,6 +89,26 @@ a controller or a service call for a service, not just "it didn't throw."
 Before calling a change done, run `bin/check` (lints, phpstan, PHPUnit in the dev
 image; local PHP is too old) and get it green.
 
+## Review gate
+
+A change isn't done until an independent review passes. The agent that wrote the
+code doesn't review it.
+
+1. Develop, then get `bin/check` green.
+2. Run the `code-reviewer` subagent (a fresh one each round) with: the repo path,
+   the diff range (`<base>..HEAD` or "working tree"), the request in Konrad's own
+   words, and from round 2 on the previous report.
+3. `VERDICT: FAIL`: fix every BLOCKER (suggestions only if they're small and inside
+   the request), get `bin/check` green, back to step 2.
+4. Stop and hand over to Konrad when: the verdict is PASS; 3 rounds have run; the
+   same BLOCKER is still open after a fix; or you think a BLOCKER is wrong (say
+   why, don't quietly skip it).
+5. Report: final verdict, number of rounds, suggestions left open. Push and deploy
+   stay outside the loop and always need Konrad's OK.
+
+If the `code-reviewer` subagent isn't installed on this machine, say so; don't
+review your own change as a stand-in.
+
 ## Code style
 
 Symfony's coding standard, the `@Symfony` php-cs-fixer ruleset (a PSR-12-derived
