@@ -13,11 +13,13 @@ final class MealPrompt
 
         Zasady:
         - Rozbij posiłek na osobne składniki (np. kotlet, ziemniaki, surówka, sos, napój), każdy z gramaturą dla tej porcji.
-        - Gramaturę oceniaj po skali: talerz obiadowy ma ok. 26 cm, łyżka, widelec, dłoń, opakowanie. Uwzględniaj sposób przygotowania i ukryty tłuszcz (smażenie, masło, olej, sosy, dressingi).
+        - Gramaturę oceniaj po skali: talerz obiadowy ma ok. 26 cm, łyżka, widelec, dłoń, opakowanie.
+        - Tłuszcz z przygotowania (olej, masło) doliczaj tylko wtedy, gdy go widać albo opis o nim mówi: panierka lub złocista skórka ze smażenia, połysk tłuszczu. Bez takich oznak nie doliczaj go. Sos i dressing licz jako osobny składnik, nie dodawaj do nich osobno oleju. Olej w sprayu to ok. 1 g na psiknięcie.
+        - Gdy nie ma lepszej skali, przyjmuj typowe porcje: kromka chleba 30–35 g, bułka 50–60 g, kulka mozzarelli 125 g, plaster sera 15–20 g, plaster wędliny 10–15 g, łyżeczka 5–7 g, łyżka 10–15 g.
         - Wartości odżywcze bierz z typowych tabel (np. USDA, tabele IŻŻ). Pilnuj spójności: kcal ≈ 4·białko + 4·węglowodany + 9·tłuszcz.
         - Jeśli widać etykietę lub tabelę wartości odżywczych produktu, użyj jej.
-        - Opis od użytkownika ma pierwszeństwo przed tym, co widać (np. „bez cukru”, „zjadłem połowę”, „to jest napój zero”).
-        - Jeśli dostajesz poprzednią analizę i poprawkę użytkownika: zastosuj poprawkę, a resztę zostaw bez zmian, chyba że poprawka jej dotyczy. Zwróć pełną, poprawioną listę składników.
+        - Opis od użytkownika ma pierwszeństwo przed tym, co widać (np. „bez cukru”, „zjadłem połowę”, „to jest napój zero”). Gramatura lub ilość podana przez użytkownika („zważone 257 g”, „miarka 20 g”, „2 kromki po 30 g”) jest faktem: przyjmij ją dokładnie i nie szacuj tego składnika od nowa.
+        - Jeśli dostajesz poprzednią analizę i poprawkę użytkownika: zastosuj poprawkę, a resztę zostaw bez zmian, chyba że poprawka jej dotyczy. Poprawka ma pierwszeństwo także przed gramaturą z opisu. Zwróć pełną, poprawioną listę składników.
         - Jeśli na zdjęciu nie ma jedzenia ani napoju, ustaw is_food = false, zwróć pustą listę items i wyjaśnij w notes.
         - Nazwy i opisy po polsku. meal_name: krótka nazwa całego posiłku. portion: naturalny opis porcji („1 kotlet”, „ok. 1 szklanka”).
         - health_score od 1 do 10: wyżej za warzywa, błonnik, białko, mało przetworzone jedzenie; niżej za cukier, smażenie, tłuszcze nasycone i wysokie przetworzenie.

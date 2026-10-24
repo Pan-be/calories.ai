@@ -50,4 +50,18 @@ final class MealAnalysisTest extends TestCase
         $this->assertStringContainsString('Przeanalizuj posiłek ze zdjęcia.', $text);
         $this->assertStringContainsString('Przeanalizuj posiłek z opisu', MealPrompt::userText(new AnalysisRequest(description: 'zupa')));
     }
+
+    // 2026-10-24, accuracy test (vault: Kalorie Accuracy Test): +13% kcal from a default 5 g of
+    // oil, oversized bread/mozzarella portions and weighed grams from the description re-estimated.
+    // Only guards the rules against being dropped; whether the model follows them is a manual retest.
+    public function testSystemPromptCarriesAccuracyRules(): void
+    {
+        $this->assertStringNotContainsString('ukryty tłuszcz', MealPrompt::SYSTEM);
+        $this->assertStringContainsString('Bez takich oznak nie doliczaj go', MealPrompt::SYSTEM);
+        $this->assertStringContainsString('kromka chleba 30–35 g', MealPrompt::SYSTEM);
+        $this->assertStringContainsString('kulka mozzarelli 125 g', MealPrompt::SYSTEM);
+        $this->assertStringContainsString('jest faktem: przyjmij ją dokładnie', MealPrompt::SYSTEM);
+        $this->assertStringContainsString('nie dodawaj do nich osobno oleju', MealPrompt::SYSTEM);
+        $this->assertStringContainsString('Poprawka ma pierwszeństwo także przed gramaturą z opisu', MealPrompt::SYSTEM);
+    }
 }
