@@ -97,6 +97,7 @@ const icon = {
   camera: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>`,
   image: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>`,
   pen: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg>`,
+  book: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>`,
   list: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>`,
   flame: '🔥',
 };
@@ -425,7 +426,7 @@ function renderDay(day, data, week) {
 }
 
 function mealCard(meal) {
-  const fallback = { text: '📝', suggestion: '✨' }[meal.source] || '🍽️';
+  const fallback = { text: '📝', suggestion: '✨', recipe: '📖' }[meal.source] || '🍽️';
   return html`<a class="card meal" href="#/meal/${meal.id}">
     <div class="thumb" data-photo="${meal.thumb_url || ''}">${meal.thumb_url ? '' : fallback}</div>
     <div class="body">
@@ -462,6 +463,7 @@ function addSheet(viewDay) {
       <label class="tile">${icon.image}Z galerii<input type="file" accept="image/*" data-photo-input></label>
       <button class="tile" id="describe">${icon.pen}Opisz posiłek</button>
       <button class="tile" id="manual">${icon.list}Wpisz ręcznie</button>
+      <button class="tile wide" id="recipe">${icon.book}Z przepisu</button>
     </div>
     <p class="hint" style="margin:14px 2px 0">Na zdjęciu najlepiej widać cały talerz z góry. Po analizie możesz poprawić wynik.</p>`);
 
@@ -473,6 +475,107 @@ function addSheet(viewDay) {
   $('#to-today', s)?.addEventListener('click', () => { day = localDay(); $('#day-note', s).remove(); });
   $('#describe', s).addEventListener('click', () => describeSheet(day));
   $('#manual', s).addEventListener('click', () => { closeSheet(); go(`/meal/new/${day}`); });
+  $('#recipe', s).addEventListener('click', () => recipeSheet(day));
+}
+
+// A recipe with known values per portion: search, pick, say how much, optional photo.
+function recipeSheet(day, query = '') {
+  const s = sheet(html`<h3>📖 Z przepisu</h3>
+    <input class="input" type="search" id="rq" maxlength="100" value="${query}" placeholder="Nazwa albo składnik, np. owsianka, kurczak" autocomplete="off">
+    <div id="rl"></div>`);
+  const q = $('#rq', s);
+  const list = $('#rl', s);
+  let timer;
+  let seq = 0;
+  const load = async () => {
+    const mine = ++seq;
+    const text = q.value.trim();
+    try {
+      const res = await api('GET', `/recipes${text ? `?q=${encodeURIComponent(text)}` : ''}`);
+      if (mine !== seq) return;
+      const empty = res.recent ? 'Wpisz nazwę przepisu albo składnik.' : 'Nie ma takiego przepisu.';
+      list.innerHTML = render(html`${res.recent && res.recipes.length ? html`<p class="hint">Ostatnio jedzone</p>` : ''}
+        ${res.recipes.length ? res.recipes.map((r, i) => html`<button type="button" class="card recipe" data-i="${i}">
+            <span class="name">${r.name}</span>
+            <span class="meta">🔥 ${n0(r.kcal)} kcal · porcja ${n0(r.grams)} g</span>${chips(r)}</button>`)
+          : html`<p class="hint">${empty}</p>`}`);
+      $$('[data-i]', list).forEach((b) => b.addEventListener('click', () => recipeAmountSheet(day, res.recipes[+b.dataset.i], q.value)));
+    } catch (e) {
+      if (mine === seq) list.innerHTML = render(errorBox(e.message));
+    }
+  };
+  q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(load, 250); });
+  load();
+  setTimeout(() => q.focus(), 50);
+}
+
+const SERVINGS = [['0.5', '½'], ['1', '1'], ['1.5', '1½'], ['2', '2'], ['g', 'gramy']];
+
+function recipeAmountSheet(day, r, query) {
+  const s = sheet(html`<h3>${r.name}</h3>
+    <p class="hint" style="margin-top:-6px">1 porcja: ${n0(r.grams)} g · ${n0(r.kcal)} kcal</p>
+    <form id="raf" novalidate>
+      <div class="field"><span>Ile zjedzone (porcje)</span><div class="seg">
+        ${SERVINGS.map(([v, t]) => html`<label><input type="radio" name="serving" value="${v}" ${v === '1' ? 'checked' : ''}>${t}</label>`)}</div></div>
+      <label class="field" id="rgf" hidden><span>Gramatura (g)</span>
+        <input class="input" type="number" inputmode="decimal" min="1" max="5000" step="any" name="grams" value="${Math.round(r.grams)}"></label>
+      <div class="left-box" id="rsum"></div>
+      <label class="btn secondary file-btn"><span id="rph">📷 Dodaj zdjęcie (opcjonalnie)</span><input type="file" accept="image/*" name="photo"></label>
+      <details class="ingredients"><summary>Składniki na porcję</summary>
+        ${r.ingredients.map((i) => html`<div class="list-row"><span>${i.name}</span><span class="hint">${n0(i.grams)} g</span></div>`)}</details>
+      <button class="btn" type="submit">Dodaj posiłek</button>
+      <button class="btn danger" type="button" id="rback" style="color:var(--muted)">Wróć do listy</button>
+    </form>`);
+  const f = $('#raf', s);
+  const factor = () => {
+    const v = f.elements.serving.value;
+    if (v !== 'g') return +v;
+    const g = +String(f.elements.grams.value).replace(',', '.') || 0;
+    return r.grams > 0 ? g / r.grams : 0;
+  };
+  const update = () => {
+    $('#rgf', s).hidden = f.elements.serving.value !== 'g';
+    const k = factor();
+    const t = { kcal: r.kcal * k, protein_g: r.protein_g * k, carbs_g: r.carbs_g * k, fat_g: r.fat_g * k };
+    $('#rsum', s).innerHTML = render(html`<b>🔥 ${n0(t.kcal)} kcal</b>${chips(t)}`);
+  };
+  f.addEventListener('input', update);
+  update();
+  f.elements.photo.addEventListener('change', () => {
+    $('#rph', s).textContent = f.elements.photo.files?.[0] ? '📷 Zdjęcie dodane ✓' : '📷 Dodaj zdjęcie (opcjonalnie)';
+  });
+  $('#rback', s).addEventListener('click', () => recipeSheet(day, query));
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('button[type=submit]', f);
+    const form = new FormData();
+    form.append('recipe_id', r.id);
+    form.append('eaten_at', eatenAtFor(day));
+    if (f.elements.serving.value === 'g') {
+      const g = String(f.elements.grams.value).replace(',', '.');
+      if (!(+g >= 1)) { f.elements.grams.focus(); return toast('Podaj gramaturę.', true); }
+      form.append('grams', g);
+    } else {
+      form.append('portions', f.elements.serving.value);
+    }
+    btn.disabled = true;
+    try {
+      const file = f.elements.photo.files?.[0];
+      if (file) {
+        let blob;
+        try { blob = await shrink(file); } catch { blob = file; }
+        form.append('photo', blob, 'meal.jpg');
+      }
+      const res = await api('POST', '/meals/recipe', { form });
+      closeSheet();
+      toast(`Dodano: ${res.meal.name}`);
+      if (location.hash !== `#/day/${day}` && !(day === localDay() && ['', '#', '#/'].includes(location.hash))) go(`/day/${day}`);
+      else viewDay(day);
+    } catch (err) {
+      toast(err.message, true);
+      btn.disabled = false;
+    }
+  });
 }
 
 function describeSheet(day) {

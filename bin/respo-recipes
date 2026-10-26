@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Build the recipes file (KALORIE_RECIPES_FILE) from the Respo plan notes in the vault.
+
+    bin/respo-recipes ~/AI-Brain/"04 - Personal/Respo Recipes" /opt/kalorie/data/recipes.json
+
+The notes are `Respo Dieta <date>.md`, one per diet plan, made by the vault's PDF parser:
+
+    ### D1P1: <title>
+    396 kcal · B 17 g · W 64 g · T 8 g (6:00-9:00, porcje: 2)
+    - Chleb żytni razowy – 2 kromki (60 g)
+    - *Sos:*
+    ...
+
+kcal and macros are per portion, ingredient grams are for the whole recipe. The output
+gives everything per portion. The same recipe in several plans is kept once. Ids are the
+code of its first appearance, `Pnn-Dd-m` (plans numbered in date order), as in the vault.
+The recipes are Respo's, so the output stays out of git (the repo is public).
+"""
+
+import json
+import re
+import sys
+from pathlib import Path
+
+HEAD = re.compile(r'^### D(\d+)P(\d+): (.+)$')
+VALUES = re.compile(r'^([\d.]+) kcal · B ([\d.]+) g · W ([\d.]+) g · T ([\d.]+) g \((.*)\)$')
+INGREDIENT = re.compile(r'^- (.+?) – (?:(.+) \(([\d.]+) g\)|([\d.]+) g)$')
+SECTION = re.compile(r'^- \*.*:\*$')
+
+
+def parse(path, plan):
+    lines = path.read_text(encoding='utf-8').split('\n')
+    out, cur = [], None
+    for i, line in enumerate(lines):
+        m = HEAD.match(line)
+        if m:
+            v = VALUES.match(lines[i + 1]) if i + 1 < len(lines) else None
+            if not v:
+                sys.exit(f'{path.name}:{i + 2}: no kcal line after "{line}"')
+            when, _, portions = v.group(5).partition(', porcje: ')
+            cur = {
+                'id': f'P{plan:02d}-D{m.group(1)}-{m.group(2)}', 'name': m.group(3).strip(),
+                'kcal': float(v.group(1)), 'protein_g': float(v.group(2)),
+                'carbs_g': float(v.group(3)), 'fat_g': float(v.group(4)),
+                'time': when, 'portions': int(portions or 1), 'ingredients': [],
+            }
+            out.append(cur)
+            continue
+        if cur is None or not line.startswith('- ') or SECTION.match(line):
+            continue
+        g = INGREDIENT.match(line)
+        if not g:
+            sys.exit(f'{path.name}:{i + 1}: ingredient without grams: {line}')
+        grams = float(g.group(3) or g.group(4))
+        cur['ingredients'].append({'name': g.group(1).strip(), 'amount': g.group(2) or '', 'grams': grams})
+    return out
+
+
+def per_portion(r):
+    n = r.pop('portions')
+    for ing in r['ingredients']:
+        ing['grams'] = round(ing['grams'] / n, 1)
+        if n > 1:
+            ing['amount'] = ''  # "2 łyżki" is for the whole pot
+    r['grams'] = round(sum(i['grams'] for i in r['ingredients']), 1)
+    return r
+
+
+def main():
+    if len(sys.argv) != 3:
+        sys.exit('usage: bin/respo-recipes <notes dir> <output.json>')
+    notes = sorted(Path(sys.argv[1]).glob('Respo Dieta *.md'))
+    if not notes:
+        sys.exit('no "Respo Dieta *.md" notes in ' + sys.argv[1])
+    seen, recipes, total = {}, [], 0
+    for plan, path in enumerate(notes, 1):
+        for r in parse(path, plan):
+            total += 1
+            key = (r['name'].lower(), r['kcal'], r['protein_g'], r['carbs_g'], r['fat_g'])
+            if key in seen:
+                seen[key]['plans'] += 1
+                continue
+            r = per_portion(r)
+            r['plans'] = 1
+            seen[key] = r
+            recipes.append(r)
+    Path(sys.argv[2]).write_text(json.dumps({'recipes': recipes}, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    print(f'{len(notes)} plans, {total} meals, {len(recipes)} recipes -> {sys.argv[2]}')
+
+
+if __name__ == '__main__':
+    main()

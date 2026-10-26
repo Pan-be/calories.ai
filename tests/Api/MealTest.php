@@ -184,13 +184,4 @@ final class MealTest extends ApiTestCase
         $this->assertTrue($body['database']);
         $this->assertSame('fake', $body['analyzer']);
     }
-
-    private function jpeg(int $w, int $h): UploadedFile
-    {
-        $img = imagecreatetruecolor($w, $h);
-        imagefill($img, 0, 0, imagecolorallocate($img, 200, 120, 40));
-        $path = tempnam(sys_get_temp_dir(), 'kal');
-        imagejpeg($img, $path, 80);
-        return new UploadedFile($path, 'meal.jpg', 'image/jpeg', null, true);
-    }
 }

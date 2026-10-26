@@ -75,4 +75,18 @@ class MealRepository extends ServiceEntityRepository
             'carbs_g' => round((float) $r['carbs_g']), 'fat_g' => round((float) $r['fat_g']),
         ], $rows);
     }
+
+    /**
+     * Names of the user's meals logged with $source, most recent first.
+     *
+     * @return list<string>
+     */
+    public function recentNames(User $user, string $source, int $limit): array
+    {
+        return $this->getEntityManager()->getConnection()->fetchFirstColumn(
+            'SELECT name FROM meals WHERE user_id = ? AND source = ?
+             GROUP BY LOWER(TRIM(name)) ORDER BY MAX(eaten_at) DESC LIMIT ' . max(1, $limit),
+            [$user->getId(), $source],
+        );
+    }
 }

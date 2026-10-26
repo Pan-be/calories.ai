@@ -7,6 +7,7 @@ use Doctrine\ORM\Tools\SchemaTool;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 abstract class ApiTestCase extends WebTestCase
 {
@@ -62,5 +63,14 @@ abstract class ApiTestCase extends WebTestCase
         ], $token);
         $this->assertSame(200, $status, json_encode($body));
         return $body;
+    }
+
+    protected function jpeg(int $w, int $h): UploadedFile
+    {
+        $img = imagecreatetruecolor($w, $h);
+        imagefill($img, 0, 0, imagecolorallocate($img, 200, 120, 40));
+        $path = tempnam(sys_get_temp_dir(), 'kal');
+        imagejpeg($img, $path, 80);
+        return new UploadedFile($path, 'meal.jpg', 'image/jpeg', null, true);
     }
 }

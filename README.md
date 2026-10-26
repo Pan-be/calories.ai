@@ -11,6 +11,10 @@ The app's interface is in Polish. The code, API and docs are in English.
 - **Meals from a photo, a description or by hand.** The AI splits a meal into items with
   grams, kcal, protein, carbs and fat. You can edit any item (changing the grams rescales
   the values) or tell the AI what's wrong ("to były 2 kotlety").
+- **Meals from a recipe with known values.** Pick a recipe (search by name or ingredient,
+  recently eaten ones first), say how much (½, 1, 1½, 2 portions or grams) and add a photo
+  if you like. The values come from the recipe, not from the AI. The recipes are the Respo
+  diet plans, kept outside the repo (see `KALORIE_RECIPES_FILE`).
 - **"Co zjeść?" (what should I eat?).** Three meal ideas that fill what's left of today's
   calories and macros, based on the time of day, today's training and the meals you
   usually log. A macro that's already used up counts as a limit. One tap logs the meal
@@ -73,6 +77,8 @@ Typical timings with `sonnet`: about 6 s per photo, about 20–25 s for three su
 | GET/PUT | `/api/me`, `/api/me/profile`, `/api/me/goals`, `/api/me/password` | profile → computed goals (`goal_breakdown` in the user); `{auto: true}` resets manual goals |
 | POST | `/api/meals/photo` | multipart `photo`, `note?`, `eaten_at?` |
 | POST | `/api/meals/describe` | `{text, eaten_at?}` |
+| POST | `/api/meals/recipe` | multipart `recipe_id`, `portions?` (default 1) or `grams?`, `eaten_at?`, `photo?`; no AI call |
+| GET | `/api/recipes?q=` | `{recipes[], recent}`: up to 30 matches by name, then by ingredient; without `q`, the recipes you logged lately |
 | POST | `/api/meals` | `{name, items[], eaten_at?, source?}`; `source` is `manual` (default) or `suggestion` |
 | GET/PATCH/DELETE | `/api/meals/{id}` | PATCH: `name`, `eaten_at`, `items` |
 | POST | `/api/meals/{id}/fix` | `{text}`: the AI corrects its analysis |
@@ -102,6 +108,20 @@ AI calls (photo, description, correction, suggestions) share a per-user hourly c
 | `KALORIE_MODEL` | `sonnet` | `sonnet`, `opus` (slower, slightly better), `haiku` |
 | `KALORIE_REGISTRATION` | `first` | `first` = only the first account, `open`, `closed` |
 | `KALORIE_ANALYSES_PER_HOUR` | `40` | per user |
+| `KALORIE_RECIPES_FILE` | `var/data/recipes.json` | recipes for "Z przepisu"; without the file there are none |
+
+## Recipes file
+
+`bin/respo-recipes` builds it from the Respo plan notes in Konrad's vault (one note per
+diet plan, parsed from the PDFs): values per portion, one entry per recipe, ids `Pnn-Dd-m`.
+
+```sh
+bin/respo-recipes ~/AI-Brain/"04 - Personal/Respo Recipes" /opt/kalorie/data/recipes.json
+```
+
+The recipes aren't ours to publish, so the file is never committed; tests use the made-up
+`tests/fixtures/recipes.json`. The app reads the file on each request, so a new one needs no
+restart.
 
 ## Development
 

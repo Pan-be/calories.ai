@@ -18,6 +18,7 @@ services:
     environment:
       DATABASE_URL: "sqlite:////data/kalorie.db"
       KALORIE_PHOTO_DIR: /data/photos
+      KALORIE_RECIPES_FILE: /data/recipes.json
       KALORIE_BRIDGE_SOCKET: /run/kalorie/ai.sock
       KALORIE_REGISTRATION: first
       KALORIE_MODEL: sonnet

@@ -441,6 +441,8 @@ textarea.input { min-height: 96px; resize: vertical; }
 
 .tile svg { width: 26px; height: 26px; }
 
+.tile.wide { grid-column: 1 / -1; flex-direction: row; align-items: center; }
+
 .tile input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
 @keyframes fade { from { opacity: 0; } }
@@ -580,3 +582,16 @@ textarea.input { min-height: 96px; resize: vertical; }
 .workouts .workout { background: none; border-radius: 0; }
 .workouts .workout + .workout { border-top: 1px solid var(--line); }
 .workout .tag + .tag { margin-left: -4px; }
+
+/* Meal from a recipe */
+#rl { margin-top: 12px; display: grid; gap: 8px; }
+#rl .hint { margin: 4px 2px; }
+.recipe { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; margin: 0; padding: 14px 16px; text-align: left; font: inherit; color: var(--text); border: 0; cursor: pointer; }
+.recipe .name { font-weight: 650; }
+.recipe .meta { color: var(--muted); font-size: 14px; }
+.file-btn { position: relative; display: flex; margin-bottom: 10px; }
+#rgf[hidden] { display: none; }
+.file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.ingredients { margin-bottom: 12px; }
+.ingredients summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 6px 2px; }
+.ingredients .list-row { font-size: 14px; }

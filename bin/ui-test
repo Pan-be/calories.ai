@@ -23,6 +23,7 @@ docker network create "$NET" >/dev/null
 docker run -d --rm --name "$APP" --network "$NET" --network-alias kalorie-ui -u "$user" -e HOME=/tmp \
     -e APP_ENV=dev -e DATABASE_URL='sqlite:////tmp/ui.db' -e KALORIE_PHOTO_DIR=/tmp/photos \
     -e KALORIE_ANALYZER=fake -e KALORIE_REGISTRATION=open -e KALORIE_ANALYSES_PER_HOUR=1000 \
+    -e KALORIE_RECIPES_FILE=/app/tests/fixtures/recipes.json \
     -v "$PWD:/app" -w /app "$PHP_IMAGE" \
     sh -c 'php bin/console doctrine:migrations:migrate -n -q && exec php -S 0.0.0.0:8000 -t public tests/ui/router.php' >/dev/null
 

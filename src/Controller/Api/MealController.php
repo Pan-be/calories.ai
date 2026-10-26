@@ -13,6 +13,8 @@ use App\Http\ApiError;
 use App\Http\Input;
 use App\Nutrition\Presenter;
 use App\Photo\PhotoStore;
+use App\Recipe\RecipeBook;
+use App\Recipe\RecipeServing;
 use App\Repository\MealRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -34,6 +36,7 @@ final class MealController extends AbstractController
         private PhotoStore $photos,
         private Presenter $presenter,
         private AnalysisQuota $quota,
+        private RecipeBook $recipes,
     ) {
     }
 
@@ -88,6 +91,34 @@ final class MealController extends AbstractController
         $meal = new Meal($user, 'text', $eatenAt);
         $meal->setDescription($text);
         $this->apply($meal, $analysis);
+        $this->em->persist($meal);
+        $this->em->flush();
+
+        return $this->json(['meal' => $this->presenter->meal($meal)], 201);
+    }
+
+    /**
+     * Multipart: recipe_id, portions (e.g. 0.5) or grams, eaten_at (optional), photo (optional).
+     * Values come from the recipe, no AI; the photo is only kept with the meal.
+     */
+    #[Route('/recipe', methods: ['POST'])]
+    public function fromRecipe(Request $request, #[CurrentUser] User $user): JsonResponse
+    {
+        $in = Input::form($request);
+        $recipe = $this->recipes->get($in->string('recipe_id', 40)) ?? throw ApiError::invalid('Nie ma takiego przepisu.');
+        $grams = $in->number('grams', 1, 5000, false);
+        $serving = $grams !== null
+            ? RecipeServing::grams($recipe, $grams)
+            : RecipeServing::portions($recipe, $in->number('portions', 0.1, 10, false) ?? 1);
+
+        $meal = new Meal($user, 'recipe', $in->moment('eaten_at') ?? new \DateTimeImmutable());
+        $meal->setName($recipe['name']);
+        $meal->setDescription($serving->description());
+        $meal->replaceItems([MealItem::fromArray($serving->item())]);
+        $file = $request->files->get('photo');
+        if ($file !== null) {
+            $meal->setPhoto($this->photos->store($file));
+        }
         $this->em->persist($meal);
         $this->em->flush();
 
