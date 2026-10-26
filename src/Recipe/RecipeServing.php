@@ -47,7 +47,10 @@ final readonly class RecipeServing
     public function description(): string
     {
         $amount = $this->portion !== '' ? $this->portion : self::number($this->recipe['grams'] * $this->factor) . ' g';
-        $parts = array_map(fn ($i) => $i['name'] . ' ' . self::number($i['grams'] * $this->factor) . ' g', $this->recipe['ingredients']);
+        $parts = array_map(
+            fn ($i) => $i['grams'] > 0 ? $i['name'] . ' ' . self::number($i['grams'] * $this->factor) . ' g' : trim($i['amount'] . ' ' . $i['name']),
+            $this->recipe['ingredients'],
+        );
 
         return "Przepis ({$amount}): " . implode(', ', $parts);
     }

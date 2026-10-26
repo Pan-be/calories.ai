@@ -478,10 +478,13 @@ function addSheet(viewDay) {
   $('#recipe', s).addEventListener('click', () => recipeSheet(day));
 }
 
-// A recipe with known values per portion: search, pick, say how much, optional photo.
+const COOKIDOO_LINK = /https?:\/\/(www\.)?cookidoo\.[a-z.]+\/recipes\/recipe\//;
+
+// A recipe with known values per portion: search (or paste a Cookidoo link), pick, say
+// how much, optional photo.
 function recipeSheet(day, query = '') {
   const s = sheet(html`<h3>📖 Z przepisu</h3>
-    <input class="input" type="search" id="rq" maxlength="100" value="${query}" placeholder="Nazwa albo składnik, np. owsianka, kurczak" autocomplete="off">
+    <input class="input" type="search" id="rq" maxlength="1000" value="${query}" placeholder="Nazwa, składnik albo link z Cookidoo" autocomplete="off">
     <div id="rl"></div>`);
   const q = $('#rq', s);
   const list = $('#rl', s);
@@ -490,16 +493,27 @@ function recipeSheet(day, query = '') {
   const load = async () => {
     const mine = ++seq;
     const text = q.value.trim();
+    if (COOKIDOO_LINK.test(text)) return importCookidoo(text, mine);
     try {
-      const res = await api('GET', `/recipes${text ? `?q=${encodeURIComponent(text)}` : ''}`);
+      const res = await api('GET', `/recipes${text ? `?q=${encodeURIComponent(text.slice(0, 100))}` : ''}`);
       if (mine !== seq) return;
       const empty = res.recent ? 'Wpisz nazwę przepisu albo składnik.' : 'Nie ma takiego przepisu.';
       list.innerHTML = render(html`${res.recent && res.recipes.length ? html`<p class="hint">Ostatnio jedzone</p>` : ''}
         ${res.recipes.length ? res.recipes.map((r, i) => html`<button type="button" class="card recipe" data-i="${i}">
             <span class="name">${r.name}</span>
-            <span class="meta">🔥 ${n0(r.kcal)} kcal · porcja ${n0(r.grams)} g</span>${chips(r)}</button>`)
+            <span class="meta">🔥 ${n0(r.kcal)} kcal · porcja ${r.source === 'cookidoo' ? '~' : ''}${n0(r.grams)} g${r.source === 'cookidoo' ? ' · Cookidoo' : ''}</span>${chips(r)}</button>`)
           : html`<p class="hint">${empty}</p>`}`);
       $$('[data-i]', list).forEach((b) => b.addEventListener('click', () => recipeAmountSheet(day, res.recipes[+b.dataset.i], q.value)));
+    } catch (e) {
+      if (mine === seq) list.innerHTML = render(errorBox(e.message));
+    }
+  };
+  // Read once on the server, then the recipe is searchable like the others.
+  const importCookidoo = async (link, mine) => {
+    list.innerHTML = render(html`<div class="center-load" style="padding:28px 0;min-height:0"><div class="spinner dark"></div><p class="hint">Pobieram przepis z Cookidoo…</p></div>`);
+    try {
+      const { recipe } = await api('POST', '/recipes/cookidoo', { json: { link } });
+      if (mine === seq) recipeAmountSheet(day, recipe, '');
     } catch (e) {
       if (mine === seq) list.innerHTML = render(errorBox(e.message));
     }
@@ -513,7 +527,7 @@ const SERVINGS = [['0.5', '½'], ['1', '1'], ['1.5', '1½'], ['2', '2'], ['g', '
 
 function recipeAmountSheet(day, r, query) {
   const s = sheet(html`<h3>${r.name}</h3>
-    <p class="hint" style="margin-top:-6px">1 porcja: ${n0(r.grams)} g · ${n0(r.kcal)} kcal</p>
+    <p class="hint" style="margin-top:-6px">1 porcja: ${r.source === 'cookidoo' ? '~' : ''}${n0(r.grams)} g · ${n0(r.kcal)} kcal${r.source === 'cookidoo' ? ' · z Cookidoo' : ''}</p>
     <form id="raf" novalidate>
       <div class="field"><span>Ile zjedzone (porcje)</span><div class="seg">
         ${SERVINGS.map(([v, t]) => html`<label><input type="radio" name="serving" value="${v}" ${v === '1' ? 'checked' : ''}>${t}</label>`)}</div></div>
@@ -522,7 +536,7 @@ function recipeAmountSheet(day, r, query) {
       <div class="left-box" id="rsum"></div>
       <label class="btn secondary file-btn"><span id="rph">📷 Dodaj zdjęcie (opcjonalnie)</span><input type="file" accept="image/*" name="photo"></label>
       <details class="ingredients"><summary>Składniki na porcję</summary>
-        ${r.ingredients.map((i) => html`<div class="list-row"><span>${i.name}</span><span class="hint">${n0(i.grams)} g</span></div>`)}</details>
+        ${r.ingredients.map((i) => html`<div class="list-row"><span>${i.name}</span><span class="hint">${i.grams > 0 ? `${i.grams < 10 ? n1(i.grams) : n0(i.grams)} g` : i.amount}</span></div>`)}</details>
       <button class="btn" type="submit">Dodaj posiłek</button>
       <button class="btn danger" type="button" id="rback" style="color:var(--muted)">Wróć do listy</button>
     </form>`);

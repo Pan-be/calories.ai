@@ -61,3 +61,27 @@ test('nothing found, and back from a recipe to the list keeps the search', async
   await page.locator('.recipe', { hasText: 'Sałatka grecka' }).first().waitFor();
   assert.deepEqual(page.errors, []);
 });
+
+// The backend runs in the test env, so Cookidoo pages come from tests/fixtures/cookidoo.
+test('a pasted Cookidoo share text imports the recipe and logs it', async (t) => {
+  const page = await recipeSearch(t);
+  await page.fill('#rq', 'Sprawdź ten pyszny przepis znaleziony na Cookidoo®: Zupa https://cookidoo.pl/recipes/recipe/pl-PL/r100001');
+  await page.locator('#raf').waitFor();
+  assert.match(await page.locator('.sheet h3').innerText(), /Zupa testowa z dyni & imbirem/);
+  assert.match(await page.locator('.sheet .hint').first().innerText(), /~283 g · 200 kcal · z Cookidoo/);
+  await page.click('#raf button[type=submit]');
+  await page.locator('.card.meal', { hasText: 'Zupa testowa z dyni' }).waitFor();
+
+  await page.click('#fab');
+  await page.click('#recipe');
+  await page.fill('#rq', 'zupa testowa');
+  assert.match(await page.locator('.recipe', { hasText: 'Zupa testowa' }).innerText(), /Cookidoo/);
+  assert.deepEqual(page.errors, []);
+});
+
+test('a Cookidoo link without values shows the error in the sheet', async (t) => {
+  const page = await recipeSearch(t);
+  await page.fill('#rq', 'https://cookidoo.pl/recipes/recipe/pl-PL/r100002');
+  await page.locator('#rl .error-box', { hasText: 'nie ma wartości odżywczych' }).waitFor();
+  assert.deepEqual(page.errors, []);
+});

@@ -2,15 +2,17 @@
 
 namespace App\Recipe;
 
+use App\Entity\CookidooRecipe;
+use App\Repository\CookidooRecipeRepository;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
- * Recipes with known values per portion (the Respo diet plans), read from a JSON file
- * made by bin/respo-recipes. The file is optional: without it there are no recipes.
- * It stays out of git, because the recipes aren't ours to publish.
+ * Recipes with known values per portion: the Respo diet plans, read from a JSON file made
+ * by bin/respo-recipes (optional; it stays out of git, the recipes aren't ours to
+ * publish), and the Cookidoo recipes imported from links (CookidooImporter).
  *
  * @phpstan-type Ingredient array{name:string, amount:string, grams:float}
- * @phpstan-type Recipe array{id:string, name:string, kcal:float, protein_g:float, carbs_g:float, fat_g:float, grams:float, time:string, plans:int, ingredients:list<Ingredient>}
+ * @phpstan-type Recipe array{id:string, source:string, name:string, kcal:float, protein_g:float, carbs_g:float, fat_g:float, grams:float, time:string, plans:int, ingredients:list<Ingredient>}
  */
 final class RecipeBook
 {
@@ -19,13 +21,18 @@ final class RecipeBook
     /** @var array<string, Recipe>|null */
     private ?array $recipes = null;
 
-    public function __construct(#[Autowire(env: 'resolve:KALORIE_RECIPES_FILE')] private string $file)
-    {
+    public function __construct(
+        #[Autowire(env: 'resolve:KALORIE_RECIPES_FILE')] private string $file,
+        private CookidooRecipeRepository $cookidoo,
+    ) {
     }
 
     /** @return Recipe|null */
     public function get(string $id): ?array
     {
+        if (str_starts_with($id, CookidooRecipe::ID_PREFIX)) {
+            return $this->cookidoo->find($id)?->toArray();
+        }
         return $this->all()[$id] ?? null;
     }
 
@@ -42,7 +49,8 @@ final class RecipeBook
             return [];
         }
         $byName = $byIngredient = [];
-        foreach ($this->all() as $recipe) {
+        $cookidoo = array_map(fn (CookidooRecipe $r) => $r->toArray(), $this->cookidoo->findAll());
+        foreach ([...$cookidoo, ...array_values($this->all())] as $recipe) {
             $name = self::fold($recipe['name']);
             $all = $name . ' ' . self::fold(implode(' ', array_column($recipe['ingredients'], 'name')));
             if (self::holds($name, $words)) {
@@ -54,6 +62,7 @@ final class RecipeBook
         return array_slice([...$byName, ...$byIngredient], 0, $limit);
     }
 
+    /** Respo recipes loaded from the file (0: the file is missing). */
     public function count(): int
     {
         return count($this->all());
@@ -72,7 +81,7 @@ final class RecipeBook
         $data = json_decode((string) file_get_contents($this->file), true, 16, JSON_THROW_ON_ERROR);
         foreach ($data['recipes'] ?? [] as $r) {
             $this->recipes[(string) $r['id']] = [
-                'id' => (string) $r['id'], 'name' => (string) $r['name'],
+                'id' => (string) $r['id'], 'source' => 'respo', 'name' => (string) $r['name'],
                 'kcal' => (float) $r['kcal'], 'protein_g' => (float) $r['protein_g'],
                 'carbs_g' => (float) $r['carbs_g'], 'fat_g' => (float) $r['fat_g'],
                 'grams' => (float) $r['grams'], 'time' => (string) ($r['time'] ?? ''), 'plans' => (int) ($r['plans'] ?? 1),

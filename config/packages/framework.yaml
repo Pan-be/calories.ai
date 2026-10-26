@@ -29,3 +29,6 @@ framework:
 when@test:
     framework:
         test: true
+        # Cookidoo pages from tests/fixtures/cookidoo; nothing goes out.
+        http_client:
+            mock_response_factory: App\Tests\CookidooPages

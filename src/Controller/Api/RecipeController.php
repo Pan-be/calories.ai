@@ -3,6 +3,8 @@
 namespace App\Controller\Api;
 
 use App\Entity\User;
+use App\Http\Input;
+use App\Recipe\CookidooImporter;
 use App\Recipe\RecipeBook;
 use App\Repository\MealRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -17,7 +19,7 @@ final class RecipeController extends AbstractController
     private const LIMIT = 30;
     private const RECENT = 10;
 
-    public function __construct(private RecipeBook $book, private MealRepository $meals)
+    public function __construct(private RecipeBook $book, private MealRepository $meals, private CookidooImporter $cookidoo)
     {
     }
 
@@ -35,5 +37,12 @@ final class RecipeController extends AbstractController
         )));
 
         return $this->json(['recipes' => $recent, 'recent' => true]);
+    }
+
+    /** {"link"}: a Cookidoo recipe link, or the text the Cookidoo app shares with it. */
+    #[Route('/cookidoo', methods: ['POST'])]
+    public function cookidoo(Request $request): JsonResponse
+    {
+        return $this->json(['recipe' => $this->cookidoo->import(Input::json($request)->string('link', 1000))]);
     }
 }

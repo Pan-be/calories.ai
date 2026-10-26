@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# UI tests: the app on a throwaway backend (php -S in the dev image, fake analyzer,
+# UI tests: the app on a throwaway backend (php -S in the dev image, test env so the
+# HTTP client serves tests/fixtures/cookidoo, fake analyzer,
 # database in the container's /tmp) and node --test with headless Chromium in the
 # Playwright image, on a private Docker network. Both containers are --rm and are
 # stopped on exit. Usage: bin/ui-test [test file under tests/ui/ ...]
@@ -21,7 +22,7 @@ trap cleanup EXIT
 
 docker network create "$NET" >/dev/null
 docker run -d --rm --name "$APP" --network "$NET" --network-alias kalorie-ui -u "$user" -e HOME=/tmp \
-    -e APP_ENV=dev -e DATABASE_URL='sqlite:////tmp/ui.db' -e KALORIE_PHOTO_DIR=/tmp/photos \
+    -e APP_ENV=test -e DATABASE_URL='sqlite:////tmp/ui.db' -e KALORIE_PHOTO_DIR=/tmp/photos \
     -e KALORIE_ANALYZER=fake -e KALORIE_REGISTRATION=open -e KALORIE_ANALYSES_PER_HOUR=1000 \
     -e KALORIE_RECIPES_FILE=/app/tests/fixtures/recipes.json \
     -v "$PWD:/app" -w /app "$PHP_IMAGE" \
