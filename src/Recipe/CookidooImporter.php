@@ -55,6 +55,7 @@ final class CookidooImporter
             $this->em->flush();
         } catch (UniqueConstraintViolationException) {
             // The same link imported by a parallel request in the meantime: same page, same data.
+            // (The table's only unique key is the id.)
         }
 
         return $recipe->toArray();

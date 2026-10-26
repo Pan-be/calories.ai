@@ -13,10 +13,14 @@ final class CookidooPages
     /** @var list<string> */
     public static array $requested = [];
 
+    /** @var list<array<string, mixed>> the options of each request */
+    public static array $options = [];
+
     /** @param array<string, mixed> $options */
     public function __invoke(string $method, string $url, array $options = []): MockResponse
     {
         self::$requested[] = $url;
+        self::$options[] = $options;
         $file = preg_match('~^https://cookidoo\.[a-z.]+/recipes/recipe/[a-z]{2}-[A-Z]{2}/(r\d+)$~', $url, $m) === 1
             ? __DIR__ . "/fixtures/cookidoo/{$m[1]}.html" : null;
         if (str_ends_with($url, '/r100003')) {

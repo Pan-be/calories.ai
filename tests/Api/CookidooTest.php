@@ -2,7 +2,11 @@
 
 namespace App\Tests\Api;
 
+use App\Entity\CookidooRecipe;
 use App\Recipe\CookidooImporter;
+use App\Repository\CookidooRecipeRepository;
+use Doctrine\DBAL\Connection;
+use Doctrine\Persistence\ManagerRegistry;
 use App\Tests\CookidooPages;
 
 /** Cookidoo pages come from tests/fixtures/cookidoo (made up) via App\Tests\CookidooPages. */
@@ -14,6 +18,7 @@ final class CookidooTest extends ApiTestCase
     {
         parent::setUp();
         CookidooPages::$requested = [];
+        CookidooPages::$options = [];
     }
 
     public function testImportFromSharedTextReadsThePageOnce(): void
@@ -74,7 +79,7 @@ final class CookidooTest extends ApiTestCase
             'https://cookidoo.evil.com/recipes/recipe/pl-PL/r100001' => 'To nie jest link',
             'https://cookidoo.pl/recipes/recipe/pl-PL/r999999' => 'Nie ma takiego przepisu',
             'https://cookidoo.pl/recipes/recipe/pl-PL/r100002' => 'nie ma wartości odżywczych',
-            'https://cookidoo.pl/recipes/recipe/pl-PL/r100003' => 'Nie udało się pobrać', // a redirect is not followed
+            'https://cookidoo.pl/recipes/recipe/pl-PL/r100003' => 'Nie udało się pobrać', // a redirect is an error
         ] as $link => $message) {
             [$status, $body] = $this->api('POST', '/api/recipes/cookidoo', ['link' => $link], $token);
             $this->assertSame(422, $status, $link);
@@ -85,6 +90,8 @@ final class CookidooTest extends ApiTestCase
             'https://cookidoo.pl/recipes/recipe/pl-PL/r100002',
             'https://cookidoo.pl/recipes/recipe/pl-PL/r100003',
         ], CookidooPages::$requested);
+        // The mock client never follows redirects itself, so check what the importer asks for.
+        $this->assertSame([0, 0, 0], array_column(CookidooPages::$options, 'max_redirects'));
         [, $body] = $this->api('GET', '/api/recipes?q=przepis', token: $token);
         $this->assertSame([], $body['recipes']);
     }
@@ -103,5 +110,31 @@ final class CookidooTest extends ApiTestCase
             . '"nutrition":{"calories":"100 kcal"},"recipeIngredient":["400 g dyni"]}</script>';
         $recipe = CookidooImporter::parse($html, 'cookidoo-r1', 'u')->toArray();
         $this->assertEquals(100, $recipe['grams']);
+    }
+
+    public function testParallelImportOfTheSameRecipeIsNotAnError(): void
+    {
+        $token = $this->register();
+        // Another request stored the recipe after this one looked it up: the lookup misses,
+        // the insert hits the primary key.
+        $db = static::getContainer()->get(Connection::class);
+        $db->insert('cookidoo_recipes', [
+            'id' => 'cookidoo-r100001', 'name' => 'Zupa testowa z dyni & imbirem', 'kcal' => 200, 'protein_g' => 4,
+            'carbs_g' => 20.5, 'fat_g' => 10, 'grams' => 282.7, 'portions' => 4, 'ingredients' => '[]',
+            'url' => 'https://cookidoo.pl/recipes/recipe/pl-PL/r100001', 'fetched_at' => '2026-10-26 12:00:00',
+        ]);
+        $this->client->disableReboot();
+        static::getContainer()->set(CookidooRecipeRepository::class, new class(static::getContainer()->get(ManagerRegistry::class)) extends CookidooRecipeRepository {
+            public function find(mixed $id, mixed $lockMode = null, mixed $lockVersion = null): ?CookidooRecipe
+            {
+                return null;
+            }
+        });
+
+        [$status, $body] = $this->api('POST', '/api/recipes/cookidoo', ['link' => self::SHARED], $token);
+        $this->assertSame(200, $status, json_encode($body));
+        $this->assertSame('cookidoo-r100001', $body['recipe']['id']);
+        $this->assertEquals(200, $body['recipe']['kcal']);
+        $this->assertSame(['https://cookidoo.pl/recipes/recipe/pl-PL/r100001'], CookidooPages::$requested);
     }
 }
