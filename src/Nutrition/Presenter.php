@@ -47,6 +47,7 @@ final class Presenter
             'eaten_at' => $meal->getEatenAt()->setTimezone($meal->getUser()->zone())->format(\DateTimeInterface::RFC3339),
             'day' => $meal->getDay(),
             'source' => $meal->getSource(),
+            'recipe_id' => $meal->getRecipeId(),
             'description' => $meal->getDescription(),
             'photo_url' => $meal->getPhoto() ? $this->urls->generate('meal_photo', ['id' => $meal->getId(), 'v' => $meal->getPhoto()]) : null,
             'thumb_url' => $meal->getPhoto() ? $this->urls->generate('meal_photo', ['id' => $meal->getId(), 'size' => 'thumb', 'v' => $meal->getPhoto()]) : null,

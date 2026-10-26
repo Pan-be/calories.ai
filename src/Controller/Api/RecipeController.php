@@ -30,8 +30,8 @@ final class RecipeController extends AbstractController
             return $this->json(['recipes' => $this->book->search($query, self::LIMIT), 'recent' => false]);
         }
         $recent = array_values(array_filter(array_map(
-            $this->book->byName(...),
-            $this->meals->recentNames($user, 'recipe', self::RECENT),
+            $this->book->get(...),
+            $this->meals->recentRecipeIds($user, self::RECENT),
         )));
 
         return $this->json(['recipes' => $recent, 'recent' => true]);

@@ -84,6 +84,7 @@ final class RecipeTest extends ApiTestCase
             ['recipe_id' => 'P01-D1-1', 'portions' => '0'],
             ['recipe_id' => 'P01-D1-1', 'portions' => '11'],
             ['recipe_id' => 'P01-D1-1', 'grams' => '0'],
+            ['recipe_id' => 'P03-D1-2', 'grams' => '100'], // a recipe without grams
         ] as $form) {
             [$status, $body] = $this->api('POST', '/api/meals/recipe', token: $token, form: $form);
             $this->assertSame(422, $status, json_encode($form));
@@ -91,6 +92,25 @@ final class RecipeTest extends ApiTestCase
         }
         [, $summary] = $this->api('GET', '/api/summary?days=1', token: $token);
         $this->assertSame(0, $summary['days'][0]['meals']);
+    }
+
+    public function testRecentFindsTheExactRecipeWhenNamesRepeat(): void
+    {
+        // Real plans have the same title with different values (e.g. 525 vs 419 kcal).
+        $token = $this->register();
+        [, $body] = $this->api('POST', '/api/meals/recipe', token: $token, form: ['recipe_id' => 'P03-D2-4']);
+        $this->assertSame('P03-D2-4', $body['meal']['recipe_id']);
+        $this->api('POST', "/api/meals/{$body['meal']['id']}/copy", ['eaten_at' => '2030-01-01T12:00:00+01:00'], $token);
+
+        [, $body] = $this->api('GET', '/api/recipes', token: $token);
+        $this->assertSame(['P03-D2-4'], array_column($body['recipes'], 'id'));
+        $this->assertEquals(250, $body['recipes'][0]['kcal']);
+    }
+
+    public function testHealthCountsRecipes(): void
+    {
+        [, $body] = $this->api('GET', '/api/health');
+        $this->assertSame(5, $body['recipes']);
     }
 
     public function testRecentRecipesWhenNothingIsTyped(): void
@@ -102,7 +122,7 @@ final class RecipeTest extends ApiTestCase
         $this->api('POST', '/api/meals/recipe', token: $token, form: ['recipe_id' => 'P02-D3-4', 'eaten_at' => '2026-10-20T19:00:00+02:00']);
         $this->api('POST', '/api/meals/recipe', token: $token, form: ['recipe_id' => 'P01-D1-1', 'eaten_at' => '2026-10-25T08:00:00+02:00']);
         $this->api('POST', '/api/meals/recipe', token: $token, form: ['recipe_id' => 'P02-D3-4', 'eaten_at' => '2026-10-21T19:00:00+02:00']);
-        // A hand-entered meal with a recipe's name is not a recipe meal.
+        // A hand-entered meal with a recipe's name is not a recipe meal; a copy of a recipe meal is.
         $this->api('POST', '/api/meals', ['name' => 'Kurczak z ryżem i brokułem', 'items' => [['name' => 'x', 'kcal' => 1]]], $token);
 
         [, $body] = $this->api('GET', '/api/recipes', token: $token);

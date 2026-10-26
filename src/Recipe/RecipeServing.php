@@ -2,6 +2,8 @@
 
 namespace App\Recipe;
 
+use App\Http\ApiError;
+
 /**
  * How much of a recipe was eaten, as a number of portions or as grams, and the meal item
  * and description that follow from it.
@@ -24,7 +26,10 @@ final readonly class RecipeServing
     /** @param Recipe $recipe */
     public static function grams(array $recipe, float $grams): self
     {
-        return new self($recipe, $recipe['grams'] > 0 ? $grams / $recipe['grams'] : 0, '');
+        if ($recipe['grams'] <= 0) {
+            throw ApiError::invalid('Ten przepis nie ma gramatury, podaj liczbę porcji.');
+        }
+        return new self($recipe, $grams / $recipe['grams'], '');
     }
 
     /** @return array{name:string, portion:string, grams:float, kcal:float, protein_g:float, carbs_g:float, fat_g:float} */

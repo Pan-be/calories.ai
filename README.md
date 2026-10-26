@@ -92,7 +92,7 @@ Typical timings with `sonnet`: about 6 s per photo, about 20–25 s for three su
 | GET | `/api/days/{YYYY-MM-DD}` | goals, totals, remaining, meals, weight, workouts[] |
 | GET | `/api/summary?days=7&end=` | per-day totals |
 | GET/POST/DELETE | `/api/weights`, `/api/weights/{day}` | |
-| GET | `/api/health` | database and bridge status |
+| GET | `/api/health` | database and bridge status, number of recipes loaded |
 
 AI calls (photo, description, correction, suggestions) share a per-user hourly cap.
 

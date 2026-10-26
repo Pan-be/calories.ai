@@ -4,5 +4,9 @@
  {"id": "P01-D1-3", "name": "Kurczak z ryżem i brokułem", "kcal": 600, "protein_g": 45, "carbs_g": 70, "fat_g": 14, "grams": 400, "time": "13:00-16:00", "plans": 1,
   "ingredients": [{"name": "Pierś z kurczaka", "amount": "", "grams": 150}, {"name": "Ryż basmati", "amount": "", "grams": 70}, {"name": "Brokuł", "amount": "", "grams": 180}]},
  {"id": "P02-D3-4", "name": "Sałatka grecka", "kcal": 320, "protein_g": 10, "carbs_g": 12, "fat_g": 26, "grams": 250, "time": "18:00-21:00", "plans": 1,
-  "ingredients": [{"name": "Ser feta", "amount": "", "grams": 50}, {"name": "Pomidor", "amount": "", "grams": 120}, {"name": "Oliwa z oliwek", "amount": "1 łyżka", "grams": 10}, {"name": "Ogórek", "amount": "", "grams": 70}]}
+  "ingredients": [{"name": "Ser feta", "amount": "", "grams": 50}, {"name": "Pomidor", "amount": "", "grams": 120}, {"name": "Oliwa z oliwek", "amount": "1 łyżka", "grams": 10}, {"name": "Ogórek", "amount": "", "grams": 70}]},
+ {"id": "P03-D2-4", "name": "Sałatka grecka", "kcal": 250, "protein_g": 8, "carbs_g": 10, "fat_g": 20, "grams": 200, "time": "18:00-21:00", "plans": 1,
+  "ingredients": [{"name": "Ser feta", "amount": "", "grams": 40}, {"name": "Ogórek", "amount": "", "grams": 160}]},
+ {"id": "P03-D1-2", "name": "Woda z cytryną", "kcal": 5, "protein_g": 0, "carbs_g": 1, "fat_g": 0, "grams": 0, "time": "dowolna pora dnia", "plans": 1,
+  "ingredients": []}
 ]}

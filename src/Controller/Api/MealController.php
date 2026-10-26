@@ -113,6 +113,7 @@ final class MealController extends AbstractController
 
         $meal = new Meal($user, 'recipe', $in->moment('eaten_at') ?? new \DateTimeImmutable());
         $meal->setName($recipe['name']);
+        $meal->setRecipeId($recipe['id']);
         $meal->setDescription($serving->description());
         $meal->replaceItems([MealItem::fromArray($serving->item())]);
         $file = $request->files->get('photo');
@@ -201,6 +202,7 @@ final class MealController extends AbstractController
         $source = $this->find($id, $user);
         $meal = new Meal($user, $source->getSource(), Input::json($request)->moment('eaten_at') ?? new \DateTimeImmutable());
         $meal->setPhoto($source->getPhoto());
+        $meal->setRecipeId($source->getRecipeId());
         $meal->setName($source->getName());
         $meal->setDescription($source->getDescription());
         $meal->setAnalysisInfo($source->getHealthScore(), $source->getConfidence(), $source->getNotes(), $source->getAiModel(), null);

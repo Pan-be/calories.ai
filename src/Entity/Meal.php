@@ -17,7 +17,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(columns: ['user_id', 'day'])]
 class Meal
 {
-    public const SOURCES = ['photo', 'text', 'manual', 'suggestion'];
+    public const SOURCES = ['photo', 'text', 'manual', 'suggestion', 'recipe'];
 
     #[ORM\Id, ORM\GeneratedValue, ORM\Column]
     private ?int $id = null;
@@ -42,6 +42,10 @@ class Meal
     /** Photo file id in PhotoStore, if the meal came from a photo. */
     #[ORM\Column(length: 40, nullable: true)]
     private ?string $photo = null;
+
+    /** The RecipeBook id the meal was logged from (source "recipe"). */
+    #[ORM\Column(length: 40, nullable: true)]
+    private ?string $recipeId = null;
 
     /** What the user typed: the description, or a note sent with the photo. */
     #[ORM\Column(type: Types::TEXT, nullable: true)]
@@ -92,6 +96,8 @@ class Meal
     public function getSource(): string { return $this->source; }
     public function getPhoto(): ?string { return $this->photo; }
     public function setPhoto(?string $photo): void { $this->photo = $photo; }
+    public function getRecipeId(): ?string { return $this->recipeId; }
+    public function setRecipeId(?string $recipeId): void { $this->recipeId = $recipeId; }
     public function getDescription(): ?string { return $this->description; }
     public function setDescription(?string $text): void { $this->description = $text; }
     public function getHealthScore(): ?int { return $this->healthScore; }

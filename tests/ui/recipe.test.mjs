@@ -55,9 +55,9 @@ test('nothing found, and back from a recipe to the list keeps the search', async
   await page.fill('#rq', 'pizza');
   await page.locator('#rl', { hasText: 'Nie ma takiego przepisu' }).waitFor();
   await page.fill('#rq', 'grecka');
-  await page.locator('.recipe', { hasText: 'Sałatka grecka' }).click();
+  await page.locator('.recipe', { hasText: 'Sałatka grecka' }).first().click();
   await page.click('#rback');
   assert.equal(await page.inputValue('#rq'), 'grecka');
-  await page.locator('.recipe', { hasText: 'Sałatka grecka' }).waitFor();
+  await page.locator('.recipe', { hasText: 'Sałatka grecka' }).first().waitFor();
   assert.deepEqual(page.errors, []);
 });

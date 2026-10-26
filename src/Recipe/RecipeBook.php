@@ -54,20 +54,9 @@ final class RecipeBook
         return array_slice([...$byName, ...$byIngredient], 0, $limit);
     }
 
-    /**
-     * The recipe with exactly this name (as logged meals are named after their recipe).
-     *
-     * @return Recipe|null
-     */
-    public function byName(string $name): ?array
+    public function count(): int
     {
-        $key = self::fold($name);
-        foreach ($this->all() as $recipe) {
-            if (self::fold($recipe['name']) === $key) {
-                return $recipe;
-            }
-        }
-        return null;
+        return count($this->all());
     }
 
     /** @return array<string, Recipe> */
