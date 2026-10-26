@@ -123,7 +123,8 @@ bin/respo-recipes ~/AI-Brain/"04 - Personal/Respo Recipes" /opt/kalorie/data/rec
 
 Cookidoo has no public API. Each recipe page carries schema.org `Recipe` data (values per
 portion, number of portions, ingredients with grams) without a login, so a pasted link is
-read once (`App\Recipe\CookidooImporter`, identified as `Kalorie/1.0`) and stored in the
+read once (`App\Recipe\CookidooImporter`, identified as `Kalorie/1.0`, only from the
+allowlisted Cookidoo domains, no redirects followed) and stored in the
 `cookidoo_recipes` table. A portion's grams are the ingredients' sum over the portions, so
 approximate (a clove or teaspoon counts as 5 g, a pinch 0.5 g). Tests never go out: in the
 test env the HTTP client serves the made-up pages in `tests/fixtures/cookidoo`.

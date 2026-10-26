@@ -2,6 +2,7 @@
 
 namespace App\Tests\Api;
 
+use App\Recipe\CookidooImporter;
 use App\Tests\CookidooPages;
 
 /** Cookidoo pages come from tests/fixtures/cookidoo (made up) via App\Tests\CookidooPages. */
@@ -73,12 +74,17 @@ final class CookidooTest extends ApiTestCase
             'https://cookidoo.evil.com/recipes/recipe/pl-PL/r100001' => 'To nie jest link',
             'https://cookidoo.pl/recipes/recipe/pl-PL/r999999' => 'Nie ma takiego przepisu',
             'https://cookidoo.pl/recipes/recipe/pl-PL/r100002' => 'nie ma wartości odżywczych',
+            'https://cookidoo.pl/recipes/recipe/pl-PL/r100003' => 'Nie udało się pobrać', // a redirect is not followed
         ] as $link => $message) {
             [$status, $body] = $this->api('POST', '/api/recipes/cookidoo', ['link' => $link], $token);
             $this->assertSame(422, $status, $link);
             $this->assertStringContainsString($message, $body['error']['message'], $link);
         }
-        $this->assertNotContains('https://cookidoo.evil.com/recipes/recipe/pl-PL/r100001', CookidooPages::$requested);
+        $this->assertSame([
+            'https://cookidoo.pl/recipes/recipe/pl-PL/r999999',
+            'https://cookidoo.pl/recipes/recipe/pl-PL/r100002',
+            'https://cookidoo.pl/recipes/recipe/pl-PL/r100003',
+        ], CookidooPages::$requested);
         [, $body] = $this->api('GET', '/api/recipes?q=przepis', token: $token);
         $this->assertSame([], $body['recipes']);
     }
@@ -88,5 +94,14 @@ final class CookidooTest extends ApiTestCase
         [$status] = $this->api('POST', '/api/recipes/cookidoo', ['link' => self::SHARED]);
         $this->assertSame(401, $status);
         $this->assertSame([], CookidooPages::$requested);
+    }
+
+    public function testYieldGivenAsAList(): void
+    {
+        // schema.org allows recipeYield as a list, e.g. ["4", "4 porcje"].
+        $html = '<script type="application/ld+json">{"@type":"Recipe","name":"Test","recipeYield":["4","4 porcje"],'
+            . '"nutrition":{"calories":"100 kcal"},"recipeIngredient":["400 g dyni"]}</script>';
+        $recipe = CookidooImporter::parse($html, 'cookidoo-r1', 'u')->toArray();
+        $this->assertEquals(100, $recipe['grams']);
     }
 }

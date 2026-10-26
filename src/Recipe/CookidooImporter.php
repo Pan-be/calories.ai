@@ -5,7 +5,9 @@ namespace App\Recipe;
 use App\Entity\CookidooRecipe;
 use App\Http\ApiError;
 use App\Repository\CookidooRecipeRepository;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -31,13 +33,8 @@ final class CookidooImporter
         private HttpClientInterface $http,
         private CookidooRecipeRepository $recipes,
         private EntityManagerInterface $em,
+        private LoggerInterface $logger,
     ) {
-    }
-
-    /** True if $text holds a Cookidoo recipe link. */
-    public static function hasLink(string $text): bool
-    {
-        return preg_match(self::LINK, $text) === 1;
     }
 
     /** @return Recipe */
@@ -53,8 +50,12 @@ final class CookidooImporter
         }
         $url = "https://{$m[1]}/recipes/recipe/{$m[2]}/{$m[3]}";
         $recipe = self::parse($this->fetch($url), $id, $url);
-        $this->em->persist($recipe);
-        $this->em->flush();
+        try {
+            $this->em->persist($recipe);
+            $this->em->flush();
+        } catch (UniqueConstraintViolationException) {
+            // The same link imported by a parallel request in the meantime: same page, same data.
+        }
 
         return $recipe->toArray();
     }
@@ -75,7 +76,8 @@ final class CookidooImporter
         if ($data === null || !isset($n['calories'])) {
             throw ApiError::invalid('Ten przepis z Cookidoo nie ma wartości odżywczych.');
         }
-        $portions = max(1, (int) ($data['recipeYield'] ?? 1));
+        $yield = $data['recipeYield'] ?? 1;
+        $portions = max(1, (int) self::number(is_array($yield) ? implode(' ', array_filter($yield, 'is_scalar')) : $yield));
         $ingredients = array_map(self::ingredient(...), array_values(array_filter((array) ($data['recipeIngredient'] ?? []), 'is_string')));
         foreach ($ingredients as $i => $ingredient) {
             $ingredients[$i]['grams'] = round($ingredient['grams'] / $portions, 1);
@@ -129,18 +131,21 @@ final class CookidooImporter
     private function fetch(string $url): string
     {
         try {
+            // No redirects: the request only ever goes to the allowlisted URL built above.
             $response = $this->http->request('GET', $url, [
                 'headers' => ['User-Agent' => 'Kalorie/1.0 (personal calorie app)', 'Accept' => 'text/html'],
                 'timeout' => 10,
-                'max_redirects' => 3,
+                'max_duration' => 15,
+                'max_redirects' => 0,
             ]);
             $status = $response->getStatusCode();
-            $final = (string) $response->getInfo('url');
-            if ($status !== 200 || preg_match(self::LINK, $final) !== 1) {
+            if ($status !== 200) {
+                $this->logger->warning('Cookidoo fetch failed: HTTP {status} for {url}', ['status' => $status, 'url' => $url]);
                 throw ApiError::invalid($status === 404 ? 'Nie ma takiego przepisu w Cookidoo.' : 'Nie udało się pobrać przepisu z Cookidoo.');
             }
             $html = $response->getContent();
-        } catch (ExceptionInterface) {
+        } catch (ExceptionInterface $e) {
+            $this->logger->warning('Cookidoo fetch failed: {error} for {url}', ['error' => $e::class, 'url' => $url]);
             throw ApiError::invalid('Nie udało się pobrać przepisu z Cookidoo.');
         }
         if (strlen($html) > self::MAX_BYTES) {
