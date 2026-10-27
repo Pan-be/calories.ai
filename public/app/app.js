@@ -1,8 +1,10 @@
 // Kalorie web app: hash routes, plain DOM, no build step.
 import { api, getToken, setToken, onLoggedOut, photo, forgetPhotos } from './api.js?v=2';
+import * as scale from './scale.js?v=1';
 
 const app = document.getElementById('app');
 const state = { user: null, pending: [] };
+let leaveScreen = null; // cleanup of a screen that holds a resource (the scale connection)
 
 // ---------- HTML helpers: interpolations are escaped unless they come from html`` ----------
 
@@ -40,6 +42,7 @@ const nf0 = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 1 });
 const n0 = (v) => nf0.format(Math.round(v || 0));
 const n1 = (v) => nf1.format(v || 0);
+const nf2 = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function localDay(date = new Date()) {
   const y = date.getFullYear();
@@ -172,6 +175,7 @@ const routes = [
   [/^\/profile$/, () => viewProfile(false)],
   [/^\/welcome$/, () => viewProfile(true)],
   [/^\/progress$/, viewProgress],
+  [/^\/scale$/, viewScale],
   [/^\/settings$/, viewSettings],
   [/^\/meal\/new\/(\d{4}-\d{2}-\d{2})$/, (m) => viewNewMeal(m[1])],
   [/^\/meal\/(\d+)$/, (m) => viewMeal(Number(m[1]))],
@@ -181,6 +185,8 @@ const routes = [
 
 async function route() {
   closeSheet();
+  leaveScreen?.();
+  leaveScreen = null;
   const path = location.hash.replace(/^#/, '') || '/';
   const isAuth = path === '/login' || path === '/register';
   if (!getToken() && !isAuth) return go('/login');
@@ -1059,6 +1065,7 @@ async function viewProgress() {
       <form id="wf" style="display:flex;gap:10px;margin-top:12px">
         <input class="input" type="number" inputmode="decimal" step="any" min="25" max="400" name="weight_kg" placeholder="Dzisiejsza waga (kg)" required>
         <button class="btn small" type="submit" style="min-height:50px">Zapisz</button></form>
+      <a class="btn secondary" href="#/scale" style="margin-top:10px">Zważ się na wadze Bluetooth</a>
     </div>
     <div class="card"><h2>Kalorie, ostatnie 14 dni</h2>
       ${kcalChart(summary.days, summary.goals.kcal)}
@@ -1084,6 +1091,114 @@ async function viewProgress() {
       viewProgress();
     } catch (err) { toast(err.message, true); }
   }));
+}
+
+// ---------- Scale ----------
+
+// Weighing on the Bluetooth scale: the stable reading is saved (it becomes the day's weight),
+// the impedance frame that follows ~15 s later is attached to it.
+async function viewScale() {
+  const top = html`<div class="topbar"><a class="icon-btn" href="#/progress" aria-label="Wróć">${icon.back}</a><div class="title-sm">Ważenie</div><span style="width:40px"></span></div>`;
+  if (!scale.supported()) {
+    return mount(html`<div class="screen plain">${top}
+      <div class="card"><h2>Ta przeglądarka nie łączy się z wagą</h2>
+        <p class="hint" style="margin:0">Safari nie obsługuje Bluetooth na stronach. Otwórz Kalorie w aplikacji <b>Bluefy</b> (darmowa w App Store) pod tym samym adresem i zaloguj się tam.</p></div></div>`);
+  }
+  mount(html`<div class="screen plain">${top}
+    <div class="card scale-card">
+      <div id="scale-weight" class="scale-weight">–</div>
+      <p id="scale-status" class="hint" role="status">Zamknij MovingLife (waga łączy się tylko z jedną aplikacją). Stań na wadze, żeby ją obudzić, i połącz się.</p>
+      <button class="btn" id="scale-connect">Połącz z wagą</button>
+    </div>
+    <div class="card"><h2>Ostatnie ważenia</h2><div id="scale-list"><div class="spinner dark"></div></div></div>
+  </div>`);
+
+  let active = true;
+  let disconnect = null;
+  let saved = false; // the current weighing's stable reading is saved; re-armed once someone steps off
+  let saving = null; // the save of the current weighing: {weight, promise of its id}
+  const status = (text) => { if (active) $('#scale-status').textContent = text; };
+  const connectBtn = $('#scale-connect');
+  leaveScreen = () => { active = false; disconnect?.(); };
+
+  const list = async () => {
+    let items;
+    try {
+      items = (await api('GET', '/scale/measurements?days=30')).measurements.reverse();
+    } catch (e) { if (active) $('#scale-list').innerHTML = render(errorBox(e.message)); return; }
+    if (!active) return;
+    $('#scale-list').innerHTML = render(items.length ? items.slice(0, 15).map((m) => html`<div class="list-row">
+        <span>${dayTitle(m.day)}, ${timeOf(m.measured_at)}${m.impedances ? html` <span class="hint">· skład ciała</span>` : ''}</span>
+        <span><b>${n1(m.weight_kg)} kg</b> <button class="link-btn" data-del="${m.id}" aria-label="Usuń">✕</button></span></div>`)
+      : html`<p class="hint" style="margin:0">Brak ważeń z ostatnich 30 dni.</p>`);
+    $$('#scale-list [data-del]').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm('Usunąć to ważenie? Jeśli było ostatnie tego dnia, wagą dnia znów będzie poprzednie ważenie.')) return;
+      try {
+        state.user = (await api('DELETE', `/scale/measurements/${b.dataset.del}`)).user;
+        list();
+      } catch (err) { toast(err.message, true); }
+    }));
+  };
+  list();
+
+  const onWeight = (kg, stable) => {
+    if (!active) return;
+    $('#scale-weight').textContent = `${nf2.format(kg)} kg`;
+    if (kg < 5) {
+      saved = false; // nobody on the scale: the next stable reading is a new weighing
+      return;
+    }
+    if (!stable) {
+      if (!saved) status('Ustala się…');
+      return;
+    }
+    if (saved || kg < 25) return;
+    saved = true;
+    const promise = api('POST', '/scale/measurements', { json: { weight_kg: kg } }).then((res) => {
+      state.user = res.user;
+      status(`Zapisano ${n1(kg)} kg. Czekam na pomiar składu ciała (ok. 15 s), nie zamykaj tej strony.`);
+      list();
+      return res.measurement.id;
+    }).catch((e) => { status(e.message); toast(e.message, true); return null; });
+    saving = { weight: kg, promise };
+  };
+
+  const onFrame = async (hex) => {
+    if (!active) return;
+    const current = saving;
+    const id = await current?.promise;
+    if (!id) {
+      status('Przyszedł pomiar składu ciała, ale bez zapisanej wagi. Zejdź z wagi i zważ się jeszcze raz.');
+      return;
+    }
+    try {
+      await api('PUT', `/scale/measurements/${id}/frame`, { json: { frame: hex } });
+      status(`Zapisano ${n1(current.weight)} kg z pomiarem impedancji. Możesz zejść z wagi.`);
+      list();
+    } catch (e) { status(e.message); }
+  };
+
+  const onDisconnect = () => {
+    disconnect = null;
+    if (!active) return;
+    connectBtn.hidden = false;
+    status('Rozłączono z wagą. Stań na niej ponownie i połącz się, żeby zważyć się jeszcze raz.');
+  };
+
+  connectBtn.addEventListener('click', async () => {
+    connectBtn.hidden = true;
+    saved = false;
+    saving = null;
+    status('Wybierz wagę IF_B8B z listy…');
+    try {
+      disconnect = await scale.connect({ onWeight, onFrame, onDisconnect });
+      if (!active) return disconnect();
+      status('Połączono. Stań na wadze i stój do końca pomiaru.');
+    } catch (e) {
+      connectBtn.hidden = false;
+      status(scale.cancelled(e) ? 'Nie wybrano wagi.' : `Nie udało się połączyć: ${scale.errorText(e)}`);
+    }
+  });
 }
 
 function weightChart(entries, target) {
