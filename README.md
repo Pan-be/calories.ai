@@ -94,6 +94,9 @@ Typical timings with `sonnet`: about 6 s per photo, about 20–25 s for three su
 | GET | `/api/days/{YYYY-MM-DD}` | goals, totals, remaining, meals, weight, workouts[] |
 | GET | `/api/summary?days=7&end=` | per-day totals |
 | GET/POST/DELETE | `/api/weights`, `/api/weights/{day}` | |
+| GET/POST | `/api/scale/measurements?days=90` | Bluetooth scale: POST `{weight_kg}` (the scale's value, unrounded) saves a weighing now and makes it the day's weight; GET lists them oldest first, with `impedances` (22 values) once the frame is attached |
+| PUT | `/api/scale/measurements/{id}/frame` | `{frame}`: the scale's 118-byte FFF3 frame as hex, checked (start, type, checksum, same weight) and kept raw |
+| DELETE | `/api/scale/measurements/{id}` | a wrong weighing; if the day's weight came from it, the day goes back to its previous weighing (none left: no weight that day) |
 | GET | `/api/health` | database and bridge status, number of recipes loaded |
 
 AI calls (photo, description, correction, suggestions) share a per-user hourly cap.
@@ -111,6 +114,15 @@ AI calls (photo, description, correction, suggestions) share a per-user hourly c
 | `KALORIE_REGISTRATION` | `first` | `first` = only the first account, `open`, `closed` |
 | `KALORIE_ANALYSES_PER_HOUR` | `40` | per user |
 | `KALORIE_RECIPES_FILE` | `var/data/recipes.json` | recipes for "Z przepisu"; without the file there are none |
+
+## Accounts
+
+With `KALORIE_REGISTRATION=first` only the first account can sign up in the app. More accounts
+are made on the server, which prints a random password to hand over (changeable in settings):
+
+```sh
+docker compose exec kalorie-php php bin/console app:user:create someone@example.com
+```
 
 ## Recipes file
 
