@@ -1,7 +1,7 @@
 # Kalorie: PHP-FPM with the extensions the app needs (GD and EXIF for photos, intl; SQLite and OPcache are built in).
 FROM composer:2.10.2 AS composer
 
-FROM php:8.5.11-fpm-alpine3.24 AS base
+FROM php:8.5.12-fpm-alpine3.24 AS base
 RUN apk add --no-cache icu-libs libjpeg-turbo libpng libwebp freetype \
  && apk add --no-cache --virtual .build icu-dev libjpeg-turbo-dev libpng-dev libwebp-dev freetype-dev \
  && docker-php-ext-configure gd --with-jpeg --with-webp --with-freetype \
