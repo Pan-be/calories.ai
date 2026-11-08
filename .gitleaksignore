@@ -1,0 +1,2 @@
+# Symfony's dev-only APP_SECRET, committed by convention; production reads its own from app.env (2026-11-08)
+257bedba36923fb415de46a1fdc63cdd620b6493:.env.dev:generic-api-key:3
