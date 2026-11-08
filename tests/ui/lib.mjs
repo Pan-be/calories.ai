@@ -2,11 +2,11 @@ import { chromium } from 'playwright-core';
 
 export const BASE = process.env.KALORIE_UI_BASE ?? 'http://kalorie-ui:8000';
 
-/** A phone-sized page; page errors are collected so a test can assert there were none. */
-export async function phone(t) {
+/** A phone-sized page; page errors are collected so a test can assert there were none. Extra newPage options (e.g. timezoneId) pass through. */
+export async function phone(t, options = {}) {
   const browser = await chromium.launch();
   t.after(() => browser.close());
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, ...options });
   page.errors = [];
   page.on('pageerror', (e) => page.errors.push(e.message));
   return page;

@@ -1043,8 +1043,14 @@ async function viewProgress() {
   mount(html`<div class="screen"><div class="center-load"><div class="spinner dark"></div></div></div>${nav('progress')}`);
   let weights;
   let summary;
+  let scaleList;
   try {
-    [weights, summary] = await Promise.all([api('GET', '/weights?days=180'), api('GET', '/summary?days=14')]);
+    [weights, summary, scaleList] = await Promise.all([
+      api('GET', '/weights?days=180'), api('GET', '/summary?days=14'),
+      // The body card is optional: a failing scale list leaves the rest of the screen working.
+      // 40 days: the chart's month plus room for the 7-day comparison.
+      api('GET', '/scale/measurements?days=40').catch(() => ({ failed: true })),
+    ]);
   } catch (e) {
     return mount(html`<div class="screen">${errorBox(e.message)}</div>${nav('progress')}`);
   }
@@ -1067,6 +1073,7 @@ async function viewProgress() {
         <button class="btn small" type="submit" style="min-height:50px">Zapisz</button></form>
       <a class="btn secondary" href="#/scale" style="margin-top:10px">Zważ się na wadze Bluetooth</a>
     </div>
+    ${scaleList.failed ? html`<div class="card" id="body-card"><h2>Skład ciała</h2><p class="hint" style="margin:0">Nie udało się wczytać ważeń. Spróbuj odświeżyć.</p></div>` : bodyCard(scaleList.measurements)}
     <div class="card"><h2>Kalorie, ostatnie 14 dni</h2>
       ${kcalChart(summary.days, summary.goals.kcal)}
       <p class="hint" style="margin:10px 0 0">Średnio ${n0(avg)} kcal w dni z wpisami (${logged.length}/14), cel ${n0(summary.goals.kcal)} kcal.</p></div>
@@ -1095,6 +1102,40 @@ async function viewProgress() {
 
 // ---------- Scale ----------
 
+/** Each day's first weighing with a computed body composition (the morning one), oldest first. */
+function bodyDays(measurements) {
+  const days = [];
+  for (const m of measurements) {
+    if (m.body && days[days.length - 1]?.day !== m.day) days.push(m);
+  }
+  return days;
+}
+
+/** The four body composition values, as rows. */
+function bodyRows(b) {
+  return html`<div class="list-row"><span>Tłuszcz</span><b>${n1(b.fat_pct)} % <span class="hint" style="font-weight:400">(${n1(b.fat_kg)} kg)</span></b></div>
+    <div class="list-row"><span>Masa beztłuszczowa</span><b>${n1(b.lean_kg)} kg</b></div>
+    <div class="list-row"><span>Woda</span><b>${n1(b.water_pct)} %</b></div>`;
+}
+
+/** Progress card: the latest day's first weighing, its change against a day 7+ days back, and a fat % line. */
+function bodyCard(measurements) {
+  const days = bodyDays(measurements);
+  if (!days.length) return '';
+  const last = days[days.length - 1];
+  // Calendar days, not milliseconds: a week across a DST change is 167 or 169 hours.
+  const earlier = days.filter((m) => m.day <= addDays(last.day, -7)).pop();
+  // Sign from the rounded value, so a 0.04 change reads ±0, not +0.
+  const diff = earlier ? Math.round((last.body.fat_pct - earlier.body.fat_pct) * 10) / 10 : null;
+  const change = diff === null ? '' : html` <span class="hint" style="font-weight:400">(${diff > 0 ? '+' : diff < 0 ? '−' : '±'}${n1(Math.abs(diff))} pkt od ${parseDay(earlier.day).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })})</span>`;
+  return html`<div class="card" id="body-card"><h2>Skład ciała${change}</h2>
+    <p class="hint" style="margin:0 0 6px">${parseDay(last.day).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}, ${timeOf(last.measured_at)} · pierwsze ważenie dnia</p>
+    ${bodyRows(last.body)}
+    ${days.length >= 2 ? html`<div style="margin-top:12px">${trendChart(days.map((m) => ({ day: m.day, v: m.body.fat_pct })), { label: 'Wykres tłuszczu' })}</div>
+      <p class="hint" style="margin:6px 0 0">Tłuszcz w %, pierwsze ważenie każdego dnia. Liczy się trend, nie pojedynczy pomiar.</p>` : ''}
+  </div>`;
+}
+
 /** The weighing's body composition for the list: fat %, or why there is none. */
 function bodyNote(m) {
   if (m.body) return html` <span class="hint">· ${n1(m.body.fat_pct)} % tłuszczu</span>`;
@@ -1119,6 +1160,7 @@ async function viewScale() {
       <p id="scale-status" class="hint" role="status">Zamknij MovingLife (waga łączy się tylko z jedną aplikacją). Stań na wadze, żeby ją obudzić, i połącz się.</p>
       <button class="btn" id="scale-connect">Połącz z wagą</button>
     </div>
+    <div class="card" id="scale-latest" hidden></div>
     <div class="card"><h2>Ostatnie ważenia</h2><div id="scale-list"><div class="spinner dark"></div></div></div>
   </div>`);
 
@@ -1134,8 +1176,19 @@ async function viewScale() {
     let items;
     try {
       items = (await api('GET', '/scale/measurements?days=30')).measurements.reverse();
-    } catch (e) { if (active) $('#scale-list').innerHTML = render(errorBox(e.message)); return; }
+    } catch (e) {
+      if (!active) return;
+      $('#scale-latest').hidden = true; // don't keep showing a weighing that may have just been deleted
+      $('#scale-list').innerHTML = render(errorBox(e.message));
+      return;
+    }
     if (!active) return;
+    const latest = items.find((m) => m.body);
+    $('#scale-latest').hidden = !latest;
+    if (latest) {
+      $('#scale-latest').innerHTML = render(html`<h2>Skład ciała</h2>
+        <p class="hint" style="margin:0 0 6px">${dayTitle(latest.day)}, ${timeOf(latest.measured_at)} · ${n1(latest.weight_kg)} kg</p>${bodyRows(latest.body)}`);
+    }
     $('#scale-list').innerHTML = render(items.length ? items.slice(0, 15).map((m) => html`<div class="list-row">
         <span>${dayTitle(m.day)}, ${timeOf(m.measured_at)}${bodyNote(m)}</span>
         <span><b>${n1(m.weight_kg)} kg</b> <button class="link-btn" data-del="${m.id}" aria-label="Usuń">✕</button></span></div>`)
@@ -1219,22 +1272,27 @@ async function viewScale() {
 }
 
 function weightChart(entries, target) {
+  return trendChart(entries.map((e) => ({ day: e.day, v: e.weight_kg })), { target, label: 'Wykres wagi' });
+}
+
+/** A line over days: points [{day, v}] oldest first, at least two; an optional dashed target line. */
+function trendChart(points, { target = null, label }) {
   const W = 320; const H = 150; const P = 26;
-  const values = entries.map((e) => e.weight_kg).concat(target ? [target] : []);
+  const values = points.map((p) => p.v).concat(target ? [target] : []);
   let min = Math.min(...values); let max = Math.max(...values);
   if (max - min < 2) { min -= 1; max += 1; }
-  const t0 = parseDay(entries[0].day).getTime();
-  const t1 = Math.max(parseDay(entries[entries.length - 1].day).getTime(), t0 + 86400000);
+  const t0 = parseDay(points[0].day).getTime();
+  const t1 = Math.max(parseDay(points[points.length - 1].day).getTime(), t0 + 86400000);
   const x = (day) => P + ((parseDay(day).getTime() - t0) / (t1 - t0)) * (W - P - 8);
   const y = (v) => 8 + (1 - (v - min) / (max - min)) * (H - 30);
-  const path = entries.map((e, i) => `${i ? 'L' : 'M'}${x(e.day).toFixed(1)},${y(e.weight_kg).toFixed(1)}`).join(' ');
-  return html`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Wykres wagi">
+  const path = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.day).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
+  return html`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${label}">
     ${[max, (min + max) / 2, min].map((v) => html`<text x="0" y="${y(v) + 4}">${n1(v)}</text><line x1="${P}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/>`)}
     ${target ? html`<line x1="${P}" x2="${W}" y1="${y(target)}" y2="${y(target)}" stroke="var(--good)" stroke-dasharray="4 4"/>` : ''}
     <path d="${path}" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-    ${entries.map((e) => html`<circle cx="${x(e.day)}" cy="${y(e.weight_kg)}" r="3" fill="var(--text)"/>`)}
-    <text x="${P}" y="${H - 4}">${parseDay(entries[0].day).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })}</text>
-    <text x="${W}" y="${H - 4}" text-anchor="end">${parseDay(entries[entries.length - 1].day).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })}</text>
+    ${points.map((p) => html`<circle cx="${x(p.day)}" cy="${y(p.v)}" r="3" fill="var(--text)"/>`)}
+    <text x="${P}" y="${H - 4}">${parseDay(points[0].day).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })}</text>
+    <text x="${W}" y="${H - 4}" text-anchor="end">${parseDay(points[points.length - 1].day).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })}</text>
   </svg>`;
 }
 
