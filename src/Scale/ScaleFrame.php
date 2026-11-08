@@ -5,8 +5,8 @@ namespace App\Scale;
 /**
  * The 118-byte frame the 4fizjo B8 scale sends on FFF3 about 15 s after a weighing:
  * 33 CC, length (2 bytes LE), type 01 03 81 01, weight kg×100 (BE) at bytes 10-11,
- * 22 big-endian float32 values from byte 28 (most likely segmental impedances; the
- * mapping isn't known yet; the last value, 43 5F 03 03 in the first real frame, may be
+ * 22 big-endian float32 values from byte 28 (segmental impedances, ohms × 10; the mapping
+ * is in BodyComposition; the last value, 43 5F 03 03 in the first real frame, may be
  * something else), checksum = (sum of the other bytes + 1) & 0xFF.
  */
 final readonly class ScaleFrame

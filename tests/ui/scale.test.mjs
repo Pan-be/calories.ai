@@ -103,7 +103,7 @@ test('a weighing: live weight, the stable reading is saved once, then the impeda
 
   // The 118-byte frame arrives in 20-byte packets, the last one shorter.
   for (const packet of FULL.match(/.{1,40}/g)) await send(page, FFF3, packet);
-  await page.locator('#scale-status', { hasText: 'impedancj' }).waitFor();
+  await page.locator('#scale-status', { hasText: 'Możesz zejść z wagi' }).waitFor();
   saved = await measurements(page);
   assert.equal(saved.length, 1);
   assert.equal(saved[0].impedances.length, 22);
@@ -230,7 +230,7 @@ test('a stable flag flickering while still on the scale does not save a second w
   await send(page, FFF1, LIVE_SETTLING);
   await send(page, FFF1, LIVE_STABLE);
   for (const packet of FULL.match(/.{1,40}/g)) await send(page, FFF3, packet);
-  await page.locator('#scale-status', { hasText: 'impedancj' }).waitFor();
+  await page.locator('#scale-status', { hasText: 'Możesz zejść z wagi' }).waitFor();
   const saved = await measurements(page);
   assert.equal(saved.length, 1);
   assert.equal(saved[0].impedances.length, 22);
@@ -262,5 +262,42 @@ test('Bluefy rejecting with undefined shows a readable error', async (t) => {
   await page.click('#scale-connect');
   await page.locator('#scale-status', { hasText: 'nieznany błąd' }).waitFor();
   assert.doesNotMatch(await page.locator('#scale-status').innerText(), /undefined/);
+  assert.deepEqual(page.errors, []);
+});
+
+// 2026-11-08: body composition from the frame (whole body, calibrated to the display).
+// The REAL frame with its weight but every impedance zeroed, as when the handles are let go too early.
+const FULL_ZEROS = '33cc76000103810173711e00422202010200000000005c050002a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003030070';
+
+async function weighWith(page, frame) {
+  await page.click('#scale-connect');
+  await page.locator('#scale-status', { hasText: 'Stań na wadze' }).waitFor();
+  await send(page, FFF1, LIVE_STABLE);
+  await page.locator('#scale-status', { hasText: 'Zapisano 76,8 kg' }).waitFor();
+  await send(page, FFF1, END);
+  for (const packet of frame.match(/.{1,40}/g)) await send(page, FFF3, packet);
+}
+
+test('after the frame, the fat % shows in the status and in the list', async (t) => {
+  const page = await scaleScreen(t);
+  await weighWith(page, FULL);
+  await page.locator('#scale-status', { hasText: '% tłuszczu' }).waitFor();
+  const [m] = await measurements(page);
+  assert.equal(m.body_status, 'ok');
+  const fat = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 1 }).format(m.body.fat_pct);
+  assert.match(await page.locator('#scale-status').innerText(), new RegExp(`${fat} % tłuszczu`));
+  await page.locator('#scale-list', { hasText: `${fat} % tłuszczu` }).waitFor();
+  assert.doesNotMatch(await page.locator('#scale-list').innerText(), /skład ciała/);
+  assert.deepEqual(page.errors, []);
+});
+
+test('a frame without impedances tells the user to hold the handles and weigh again', async (t) => {
+  const page = await scaleScreen(t);
+  await weighWith(page, FULL_ZEROS);
+  await page.locator('#scale-status', { hasText: 'rączki' }).waitFor();
+  const [m] = await measurements(page);
+  assert.equal(m.body_status, 'no_impedance');
+  assert.equal(m.weight_kg, 76.8); // the weight is kept
+  await page.locator('#scale-list', { hasText: 'bez składu ciała' }).waitFor();
   assert.deepEqual(page.errors, []);
 });

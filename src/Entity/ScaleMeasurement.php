@@ -3,12 +3,13 @@
 namespace App\Entity;
 
 use App\Repository\ScaleMeasurementRepository;
+use App\Scale\BodyComposition;
 use App\Scale\ScaleFrame;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
  * One weighing on the Bluetooth scale, many a day. The raw FFF3 frame is kept as sent so
- * body composition can be (re)computed from it once the impedance mapping is known.
+ * body composition is (re)computed from it on read, see BodyComposition.
  */
 #[ORM\Entity(repositoryClass: ScaleMeasurementRepository::class)]
 #[ORM\Table(name: 'scale_measurements')]
@@ -44,15 +45,24 @@ class ScaleMeasurement
     public function getWeightKg(): float { return $this->weightKg; }
     public function setFrame(ScaleFrame $frame): void { $this->frame = $frame->hex; }
 
-    /** @return array{id:?int, measured_at:string, day:string, weight_kg:float, impedances:list<float>|null} */
+    /**
+     * The body composition is computed here, on read, from the frame and the current profile.
+     *
+     * @return array{id:?int, measured_at:string, day:string, weight_kg:float, impedances:list<float>|null, body:array{fat_pct:float, fat_kg:float, lean_kg:float, water_pct:float}|null, body_status:string}
+     */
     public function toArray(): array
     {
+        $impedances = $this->frame === null ? null : ScaleFrame::parse($this->frame)->impedances;
+        $composition = BodyComposition::compute($impedances, $this->weightKg, $this->user);
+
         return [
             'id' => $this->id,
             'measured_at' => $this->measuredAt->setTimezone($this->user->zone())->format(\DateTimeInterface::RFC3339),
             'day' => $this->day,
             'weight_kg' => $this->weightKg,
-            'impedances' => $this->frame === null ? null : ScaleFrame::parse($this->frame)->impedances,
+            'impedances' => $impedances,
+            'body' => $composition['body'],
+            'body_status' => $composition['status'],
         ];
     }
 }

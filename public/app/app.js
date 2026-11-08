@@ -1095,6 +1095,15 @@ async function viewProgress() {
 
 // ---------- Scale ----------
 
+/** The weighing's body composition for the list: fat %, or why there is none. */
+function bodyNote(m) {
+  if (m.body) return html` <span class="hint">· ${n1(m.body.fat_pct)} % tłuszczu</span>`;
+  if (m.body_status === 'no_impedance') return html` <span class="hint">· bez składu ciała</span>`;
+  if (m.body_status === 'not_calibrated') return html` <span class="hint">· skład ciała jeszcze nie dla kobiet</span>`;
+  if (m.body_status === 'no_profile') return html` <span class="hint">· uzupełnij profil</span>`;
+  return '';
+}
+
 // Weighing on the Bluetooth scale: the stable reading is saved (it becomes the day's weight),
 // the impedance frame that follows ~15 s later is attached to it.
 async function viewScale() {
@@ -1128,7 +1137,7 @@ async function viewScale() {
     } catch (e) { if (active) $('#scale-list').innerHTML = render(errorBox(e.message)); return; }
     if (!active) return;
     $('#scale-list').innerHTML = render(items.length ? items.slice(0, 15).map((m) => html`<div class="list-row">
-        <span>${dayTitle(m.day)}, ${timeOf(m.measured_at)}${m.impedances ? html` <span class="hint">· skład ciała</span>` : ''}</span>
+        <span>${dayTitle(m.day)}, ${timeOf(m.measured_at)}${bodyNote(m)}</span>
         <span><b>${n1(m.weight_kg)} kg</b> <button class="link-btn" data-del="${m.id}" aria-label="Usuń">✕</button></span></div>`)
       : html`<p class="hint" style="margin:0">Brak ważeń z ostatnich 30 dni.</p>`);
     $$('#scale-list [data-del]').forEach((b) => b.addEventListener('click', async () => {
@@ -1172,8 +1181,16 @@ async function viewScale() {
       return;
     }
     try {
-      await api('PUT', `/scale/measurements/${id}/frame`, { json: { frame: hex } });
-      status(`Zapisano ${n1(current.weight)} kg z pomiarem impedancji. Możesz zejść z wagi.`);
+      const { measurement: m } = await api('PUT', `/scale/measurements/${id}/frame`, { json: { frame: hex } });
+      if (m.body_status === 'ok') {
+        status(`Zapisano ${n1(current.weight)} kg, ${n1(m.body.fat_pct)} % tłuszczu. Możesz zejść z wagi.`);
+      } else if (m.body_status === 'no_impedance') {
+        status(`Zapisano ${n1(current.weight)} kg, ale waga nie zmierzyła składu ciała. Zejdź i zważ się jeszcze raz: boso, trzymając rączki, aż waga każe zejść.`);
+      } else if (m.body_status === 'not_calibrated') {
+        status(`Zapisano ${n1(current.weight)} kg z pomiarem impedancji (skład ciała dla kobiet pojawi się po kalibracji). Możesz zejść z wagi.`);
+      } else {
+        status(`Zapisano ${n1(current.weight)} kg z pomiarem impedancji (uzupełnij profil, żeby zobaczyć skład ciała). Możesz zejść z wagi.`);
+      }
       list();
     } catch (e) { status(e.message); }
   };
