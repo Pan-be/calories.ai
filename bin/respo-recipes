@@ -14,7 +14,11 @@ The notes are `Respo Dieta <date>.md`, one per diet plan, made by the vault's PD
 kcal and macros are per portion, ingredient grams are for the whole recipe. The output
 gives everything per portion. The same recipe in several plans is kept once. Ids are the
 code of its first appearance, `Pnn-Dd-m` (plans numbered in date order), as in the vault.
-The recipes are Respo's, so the output stays out of git (the repo is public).
+
+The same folder can hold other recipe books in that format, `Lunchboxy *.md`, whose
+headings carry their own id (`### LB400-01: <title>`). There an ingredient may have no
+grams (`- natka pietruszki`, `- proszku do pieczenia – ½ łyżeczki`): it counts as 0 g.
+The recipes aren't ours to publish, so the output stays out of git (the repo is public).
 """
 
 import json
@@ -23,23 +27,27 @@ import sys
 from pathlib import Path
 
 HEAD = re.compile(r'^### D(\d+)P(\d+): (.+)$')
+BOOK_HEAD = re.compile(r'^### ([A-Z]+\d*-\d+): (.+)$')
+NO_GRAMS = re.compile(r'^- (.+?)(?: – (.+))?$')
 VALUES = re.compile(r'^([\d.]+) kcal · B ([\d.]+) g · W ([\d.]+) g · T ([\d.]+) g \((.*)\)$')
 INGREDIENT = re.compile(r'^- (.+?) – (?:(.+) \(([\d.]+) g\)|([\d.]+) g)$')
 SECTION = re.compile(r'^- \*.*:\*$')
 
 
 def parse(path, plan):
+    """plan: the plan number of a Respo note, or None for a recipe book (ids in the headings)."""
     lines = path.read_text(encoding='utf-8').split('\n')
     out, cur = [], None
     for i, line in enumerate(lines):
-        m = HEAD.match(line)
+        m = HEAD.match(line) if plan else BOOK_HEAD.match(line)
         if m:
             v = VALUES.match(lines[i + 1]) if i + 1 < len(lines) else None
             if not v:
                 sys.exit(f'{path.name}:{i + 2}: no kcal line after "{line}"')
             when, _, portions = v.group(5).partition(', porcje: ')
             cur = {
-                'id': f'P{plan:02d}-D{m.group(1)}-{m.group(2)}', 'name': m.group(3).strip(),
+                'id': f'P{plan:02d}-D{m.group(1)}-{m.group(2)}' if plan else m.group(1),
+                'name': (m.group(3) if plan else m.group(2)).strip(),
                 'kcal': float(v.group(1)), 'protein_g': float(v.group(2)),
                 'carbs_g': float(v.group(3)), 'fat_g': float(v.group(4)),
                 'time': when, 'portions': int(portions or 1), 'ingredients': [],
@@ -49,6 +57,10 @@ def parse(path, plan):
         if cur is None or not line.startswith('- ') or SECTION.match(line):
             continue
         g = INGREDIENT.match(line)
+        if not g and not plan:
+            n = NO_GRAMS.match(line)
+            cur['ingredients'].append({'name': n.group(1).strip(), 'amount': n.group(2) or '', 'grams': 0.0})
+            continue
         if not g:
             sys.exit(f'{path.name}:{i + 1}: ingredient without grams: {line}')
         grams = float(g.group(3) or g.group(4))
@@ -72,8 +84,10 @@ def main():
     notes = sorted(Path(sys.argv[1]).glob('Respo Dieta *.md'))
     if not notes:
         sys.exit('no "Respo Dieta *.md" notes in ' + sys.argv[1])
+    books = sorted(Path(sys.argv[1]).glob('Lunchboxy *.md'))
     seen, recipes, total = {}, [], 0
-    for plan, path in enumerate(notes, 1):
+    sources = [(path, plan) for plan, path in enumerate(notes, 1)] + [(path, None) for path in books]
+    for path, plan in sources:
         for r in parse(path, plan):
             total += 1
             key = (r['name'].lower(), r['kcal'], r['protein_g'], r['carbs_g'], r['fat_g'])
@@ -85,7 +99,7 @@ def main():
             seen[key] = r
             recipes.append(r)
     Path(sys.argv[2]).write_text(json.dumps({'recipes': recipes}, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
-    print(f'{len(notes)} plans, {total} meals, {len(recipes)} recipes -> {sys.argv[2]}')
+    print(f'{len(notes)} plans + {len(books)} books, {total} meals, {len(recipes)} recipes -> {sys.argv[2]}')
 
 
 if __name__ == '__main__':

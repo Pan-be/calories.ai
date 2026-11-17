@@ -128,6 +128,8 @@ docker compose exec kalorie-php php bin/console app:user:create someone@example.
 
 `bin/respo-recipes` builds it from the Respo plan notes in Konrad's vault (one note per
 diet plan, parsed from the PDFs): values per portion, one entry per recipe, ids `Pnn-Dd-m`.
+Other recipe books in the same note format (`Lunchboxy *.md`, ids in the headings such as
+`LB400-01`) are read from the same folder.
 
 ```sh
 bin/respo-recipes ~/AI-Brain/"04 - Personal/Respo Recipes" /opt/kalorie/data/recipes.json
